@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "condainer"
+version = "0.1"
+description = "Create and manage conda environments using compressed squashfs images."
+dependencies = ["pyyaml"]
+authors = [
+  {name = "Klaus Reuter", email = "klaus.reuter@mpcdf.mpg.de"}
+]
+license = {text = "MIT"}
+keywords = ["conda", "squashfs", "fuse"]
+
+[project.urls]
+homepage = "https://gitlab.mpcdf.mpg.de/khr/condainer"
+
+[project.scripts]
+condainer = "condainer.main:condainer"
