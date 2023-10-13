@@ -17,4 +17,4 @@ keywords = ["conda", "squashfs", "fuse"]
 homepage = "https://gitlab.mpcdf.mpg.de/khr/condainer"
 
 [project.scripts]
-condainer = "condainer.main:condainer"
+condainer = "condainer.main:cli"

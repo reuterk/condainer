@@ -1,7 +1,7 @@
 from . import condainer
 
 def cli():
-    """Entry point function when calling `condainer` from the command line.
+    """Entry point function to call `condainer` from the command line.
     """
     args = condainer.args()
     if   args.subcommand == 'init':

@@ -7,24 +7,30 @@ import shutil
 import subprocess
 
 
-# --- condainer building blocks below ---
+# --- condainer building blocks ---
+
 
 def cfg_write(cfg):
+    """Write config dictionary to YAML.
+    """
     with open('condainer.yml', 'w') as fp:
-        fp.write("# Condainer configuration file,\n")
-        fp.write("# edit manually, if necessary!\n")
-        fp.write("# (initially created by `condainer init`)\n")
+        fp.write("# Condainer project configuration file,\n")
+        fp.write("# initially created by `condainer init`\n")
         fp.write("#\n")
         fp.write(yaml.safe_dump(cfg))
 
 
 def cfg_read():
+    """Read config dictionary from YAML.
+    """
     with open('condainer.yml', 'r') as fp:
         cfg = yaml.safe_load(fp)
     return cfg
 
 
-def create_base_installation():
+def create_environment():
+    """Create base Miniforge/Mambaforge environment.
+    """
     cfg = cfg_read()
     conda_installer = os.path.basename(cfg['conda_installer_url'])
 
@@ -37,7 +43,9 @@ def create_base_installation():
     assert(proc.returncode == 0)
 
 
-def update_base_installation():
+def update_environment():
+    """Install user-defined software stack (environment.yml) into base environment.
+    """
     cfg = cfg_read()
 
     env_directory = os.path.join(cfg['mount_base_directory'], "condainer-"+cfg['uuid'])
@@ -50,7 +58,9 @@ def update_base_installation():
     assert(proc.returncode == 0)
 
 
-def clean_base_installation():
+def clean_environment():
+    """Delete pkg files and other unnecessary files from base environment.
+    """
     cfg = cfg_read()
 
     env_directory = os.path.join(cfg['mount_base_directory'], "condainer-"+cfg['uuid'])
@@ -62,7 +72,9 @@ def clean_base_installation():
     assert(proc.returncode == 0)
 
 
-def compress_installation():
+def compress_environment():
+    """Create squashfs image from base environment, delete base environment directory afterwards.
+    """
     cfg = cfg_read()
     env_directory = os.path.join(cfg['mount_base_directory'], "condainer-"+cfg['uuid'])
     squashfs_image = cfg['uuid']+".squashfs"
@@ -75,10 +87,10 @@ def compress_installation():
     shutil.rmtree(env_directory)
 
 
-# --- entry point functions below ---
+# --- condainer entry point functions ---
 
 
-def condainer_init(args):
+def init(args):
     """Initialize directory with a configuration skeleton.
     """
     cfg = {}
@@ -103,16 +115,16 @@ def condainer_init(args):
     cfg_write(cfg)
 
 
-def condainer_build(args):
-    """Create conda environment, create compressed squashfs image from it.
+def build(args):
+    """Create conda environment and create compressed squashfs image from it.
     """
-    create_base_installation()
-    update_base_installation()
-    clean_base_installation()
-    compress_installation()
+    create_environment()
+    update_environment()
+    clean_environment()
+    compress_environment()
 
 
-def condainer_mount(args):
+def mount(args):
     """Mount squashfs image.
     """
     cfg = cfg_read()
@@ -140,7 +152,7 @@ def condainer_mount(args):
         print()
 
 
-def condainer_umount(args):
+def umount(args):
     """Unmount squashfs image.
     """
     cfg = cfg_read()
@@ -153,15 +165,15 @@ def condainer_umount(args):
         print("OK")
 
 
-def condainer_prereq(args):
+def prereq(args):
     """Check for the necessary tools.
     """
-    for cmd in ["mksquashfs", "squashfuse", "fusermount"]:
+    for cmd in ["curl", "mksquashfs", "squashfuse", "fusermount"]:
         print(cmd, ":", shutil.which(cmd))
 
 
-def condainer_args():
-    """Handle command line arguments.
+def args():
+    """Handle command line arguments, return args.
     """
     parser = argparse.ArgumentParser(
         prog=sys.argv[0],
