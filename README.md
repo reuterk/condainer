@@ -14,7 +14,7 @@ Large environments can easily amount to several 100k individual
 small files. On a local desktop file system, this is typically not
 an issue.  However, in particular on the shared parallel file
 systems of HPC systems this can cause severe trouble as these
-filesystems are optimized for handling fewer and larger files. Inode
+filesystems are optimized for different IO patterns. Inode
 exhaustion, and heavy load due to (millions of) file opens, short
 reads, and closes during the startup phase of (parallel) Python jobs
 from numerous different users on the HPC cluster are examples.
