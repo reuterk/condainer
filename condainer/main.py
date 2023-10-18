@@ -10,9 +10,10 @@ def get_args():
     """Handle command line arguments, return args.
     """
     parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         prog=sys.argv[0],
         description='Create and manage conda environments based on compressed squashfs images.',
-        epilog='"Do not set Anacondas free, better cage them into a container!".'
+        epilog='More information at https://gitlab.mpcdf.mpg.de/khr/condainer\n\n"Do not set Anacondas free, put them into containers!"'
     )
     parser.add_argument('-q', '--quiet', action='store_true', help='be quiet, do not write to stdout unless an error occurs')
     subparsers   = parser.add_subparsers(dest='subcommand', required=True)
