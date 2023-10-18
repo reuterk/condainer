@@ -22,6 +22,32 @@ class termcol:
     BOLD = '\033[1m'
 
 
+def get_example_environment_yml():
+    raw = \
+"""
+name: basicnumpy
+channels:
+  - conda-forge
+dependencies:
+  - python=3.9
+  - numpy
+"""
+    return yaml.safe_load(raw)
+
+
+def write_example_environment_yml():
+    """Write minimal usable environment.yml as an example.
+    """
+    with open('environment.yml', 'w') as fp:
+        fp.write("# Conda environment definition file\n")
+        fp.write("# This file is only provided as an example, replace it with your own file!\n")
+        fp.write("# Hints on editing manually are available online:\n")
+        fp.write("# https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-file-manually\n")
+        fp.write("#\n")
+        environment_yml = get_example_environment_yml()
+        fp.write(yaml.safe_dump(environment_yml, sort_keys=False))
+
+
 def write_cfg(cfg):
     """Write config dictionary to YAML.
     """
@@ -47,10 +73,16 @@ def get_env_directory(cfg):
     return os.path.join(cfg['mount_base_directory'], "condainer-"+cfg['uuid'])
 
 
-def is_mounted():
+def get_installer_path(cfg):
+    if cfg['installer_url'].startswith('http'):
+        return os.path.basename(cfg['installer_url'])
+    else:
+        return cfg['installer_url']
+
+
+def is_mounted(cfg):
     """Return True if the container is mounted at its respective mountpoint, False otherwise.
     """
-    cfg = get_cfg()
     env_directory = get_env_directory(cfg)
     q = False
     with open('/proc/mounts', 'r') as fp:
@@ -62,67 +94,53 @@ def is_mounted():
     return q
 
 
-def create_environment():
+def create_environment(cfg):
     """Create base environment.
     """
-    cfg = get_cfg()
-    conda_installer = os.path.basename(cfg['installer_url'])
-
+    conda_installer = get_installer_path(cfg)
     env_directory = get_env_directory(cfg)
-    os.makedirs(env_directory)
-
     cmd = f"bash {conda_installer} -b -f -p {env_directory}".split()
     proc = subprocess.Popen(cmd, shell=False)
     proc.communicate()
     assert(proc.returncode == 0)
 
 
-def update_environment():
+def update_environment(cfg):
     """Install user-defined software stack (environment.yml) into base environment.
     """
-    cfg = get_cfg()
-
     env_directory = get_env_directory(cfg)
     exe = os.path.join(os.path.join(env_directory, 'bin'), cfg['conda_exe'])
     environment_yml = cfg["environment_yml"]
-
     cmd = f"{exe} env update --name=base --file={environment_yml}".split()
     proc = subprocess.Popen(cmd, shell=False)
     proc.communicate()
     assert(proc.returncode == 0)
 
 
-def clean_environment():
+def clean_environment(cfg):
     """Delete pkg files and other unnecessary files from base environment.
     """
-    cfg = get_cfg()
-
     env_directory = get_env_directory(cfg)
     exe = os.path.join(os.path.join(env_directory, 'bin'), cfg['conda_exe'])
-
     cmd = f"{exe} clean --all --yes".split()
     proc = subprocess.Popen(cmd, shell=False)
     proc.communicate()
     assert(proc.returncode == 0)
 
 
-def compress_environment():
-    """Create squashfs image from base environment, delete base environment directory afterwards.
+def compress_environment(cfg):
+    """Create squashfs image from base environment.
     """
-    cfg = get_cfg()
     env_directory = get_env_directory(cfg)
     squashfs_image = cfg['image']
-
     cmd = f"mksquashfs {env_directory}/ {squashfs_image} -noappend".split()
     proc = subprocess.Popen(cmd, shell=False)
     proc.communicate()
     assert(proc.returncode == 0)
 
-    shutil.rmtree(env_directory)
-
 
 def run_cmd(args):
-    """Run command in a sub-process, where PATH is prepended with the 'bin' directory of the container.
+    """Run container command in a sub-process, where PATH is prepended with the 'bin' directory of the container.
     """
     cfg = get_cfg()
     env_directory = get_env_directory(cfg)
@@ -171,11 +189,13 @@ def init(args):
             assert(proc.returncode == 0)
         else:
             if not args.quiet:
-                print(f"Found existing {conda_installer}, skipping download.")
+                print(f"Found existing installer {conda_installer}, skipping download.")
     else:
         if not args.quiet:
-            print(f"Using {cfg['installer_url']}")
+            print(f"Using installer {cfg['installer_url']}")
         assert(os.path.isfile(cfg['installer_url']))
+
+    write_example_environment_yml()
 
 
 def build(args):
@@ -183,24 +203,34 @@ def build(args):
     """
     cfg = get_cfg()
     squashfs_image = cfg['image']
+    env_directory = get_env_directory(cfg)
     if os.path.isfile(squashfs_image):
         print(f"STOP. Found existing image file {squashfs_image}, please remove this first.")
         sys.exit(1)
+    elif is_mounted(cfg):
+        print(f"STOP. Mount point {env_directory} is in use, please unmount first.")
+        sys.exit(1)
     else:
-        create_environment()
-        update_environment()
-        clean_environment()
-        compress_environment()
+        try:
+            os.makedirs(env_directory, exist_ok=True)
+            create_environment(cfg)
+            update_environment(cfg)
+            clean_environment(cfg)
+            compress_environment(cfg)
+        except:
+            raise
+        finally:
+            shutil.rmtree(env_directory)
 
 
 def mount(args):
     """Mount squashfs image, skip if already mounted.
     """
-    if is_mounted():
+    cfg = get_cfg()
+    if is_mounted(cfg):
         if not args.quiet:
             print("condainer already mounted, skipping")
     else:
-        cfg = get_cfg()
         env_directory = get_env_directory(cfg)
         os.makedirs(env_directory, exist_ok=True)
         squashfs_image = cfg['image']
@@ -211,16 +241,16 @@ def mount(args):
         if not args.quiet:
             activate = os.path.join(os.path.join(env_directory, 'bin'), 'activate')
             print(termcol.BOLD+"Environment usage in the present shell"+termcol.ENDC)
-            print( " - enable command  : "+termcol.CYAN+f"source {activate}"+termcol.ENDC)
-            print( " - disable command : "+termcol.RED+f"conda deactivate"+termcol.ENDC)
+            print( " - enable command  : "+termcol.BOLD+termcol.CYAN+f"source {activate}"+termcol.ENDC)
+            print( " - disable command : "+termcol.BOLD+termcol.RED+f"conda deactivate"+termcol.ENDC)
             # print(termcol.BOLD+"OK"+termcol.ENDC)
 
 
 def umount(args):
     """Unmount squashfs image, skip if already unmounted.
     """
-    if is_mounted():
-        cfg = get_cfg()
+    cfg = get_cfg()
+    if is_mounted(cfg):
         env_directory = get_env_directory(cfg)
         cmd = f"fusermount -u {env_directory}".split()
         proc = subprocess.Popen(cmd, shell=False)
@@ -247,27 +277,25 @@ def exec(args):
 def prereq(args):
     """Check if the necessary tools are locally available.
     """
-    for cmd in ["curl", "mksquashfs", "squashfuse", "fusermount"]:
-        print(cmd, ":", shutil.which(cmd))
+    print(termcol.BOLD+"Checking for local tool availability"+termcol.ENDC)
+    for cmd in ["curl      ", "mksquashfs", "squashfuse", "fusermount"]:
+        print(f" - {cmd} : {shutil.which(cmd.strip())}")
 
 
 def status(args):
     """Print status of the present Condainer.
     """
     cfg = get_cfg()
-    env_directory = get_env_directory(cfg)
-    squashfs_image = cfg['image']
-    if not args.quiet:
-        print(termcol.BOLD+"Condainer status"+termcol.ENDC)
-        print(f" - project directory  : {os.getcwd()}")
-        print(f" - squashfs image     : {squashfs_image}")
-        print(f" - fuse mount point   : {env_directory}")
-        print(f" - squashfuse mounted : {is_mounted()}")
+    print(termcol.BOLD+"Condainer status"+termcol.ENDC)
+    print(f" - project directory : {os.getcwd()}")
+    print(f" - squashfs image    : {cfg['image']}")
+    print(f" - fuse mount point  : {get_env_directory(cfg)}")
+    print(f" - image mounted     : {is_mounted(cfg)}")
 
 
 def test(args):
     """Dummy function for quick testing
     """
-    cfg = get_cfg()
-    # print(is_mounted())
+    # cfg = get_cfg()
+    # print(is_mounted(cfg))
     pass
