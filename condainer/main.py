@@ -1,3 +1,7 @@
+"""Condainer
+Argument handling and calling of the functions implemented in condainer.py
+"""
+
 import sys
 import argparse
 from . import condainer

@@ -1,3 +1,7 @@
+"""Condainer
+This file implements the functions to be called from main.py.
+"""
+
 import os
 import sys
 import copy
@@ -18,18 +22,20 @@ class termcol:
     BOLD = '\033[1m'
 
 
-def cfg_write(cfg):
+def write_cfg(cfg):
     """Write config dictionary to YAML.
     """
     with open('condainer.yml', 'w') as fp:
-        fp.write("# Condainer project configuration file,\n")
-        fp.write("# initially created by `condainer init`,\n")
-        fp.write("# can be edited if necessary.\n")
+        fp.write("# Condainer project configuration file\n")
         fp.write("#\n")
-        fp.write(yaml.safe_dump(cfg))
+        fp.write("# - initially created by `condainer init`\n")
+        fp.write("# - can be edited by hand, if necessary\n")
+        fp.write("# - more information at https://gitlab.mpcdf.mpg.de/khr/condainer\n")
+        fp.write("#\n")
+        fp.write(yaml.safe_dump(cfg, sort_keys=False))
 
 
-def cfg_read():
+def get_cfg():
     """Read config dictionary from YAML.
     """
     with open('condainer.yml', 'r') as fp:
@@ -37,11 +43,15 @@ def cfg_read():
     return cfg
 
 
+def get_env_directory(cfg):
+    return os.path.join(cfg['mount_base_directory'], "condainer-"+cfg['uuid'])
+
+
 def is_mounted():
     """Return True if the container is mounted at its respective mountpoint, False otherwise.
     """
-    cfg = cfg_read()
-    env_directory = os.path.join(cfg['mount_base_directory'], "condainer-"+cfg['uuid'])
+    cfg = get_cfg()
+    env_directory = get_env_directory(cfg)
     q = False
     with open('/proc/mounts', 'r') as fp:
         for raw in fp:
@@ -53,12 +63,12 @@ def is_mounted():
 
 
 def create_environment():
-    """Create base Miniforge/Mambaforge environment.
+    """Create base environment.
     """
-    cfg = cfg_read()
-    conda_installer = os.path.basename(cfg['mamba_installer_url'])
+    cfg = get_cfg()
+    conda_installer = os.path.basename(cfg['installer_url'])
 
-    env_directory = os.path.join(cfg['mount_base_directory'], "condainer-"+cfg['uuid'])
+    env_directory = get_env_directory(cfg)
     os.makedirs(env_directory)
 
     cmd = f"bash {conda_installer} -b -f -p {env_directory}".split()
@@ -70,13 +80,13 @@ def create_environment():
 def update_environment():
     """Install user-defined software stack (environment.yml) into base environment.
     """
-    cfg = cfg_read()
+    cfg = get_cfg()
 
-    env_directory = os.path.join(cfg['mount_base_directory'], "condainer-"+cfg['uuid'])
-    mamba_exe = os.path.join(os.path.join(env_directory, 'bin'), 'mamba')
+    env_directory = get_env_directory(cfg)
+    exe = os.path.join(os.path.join(env_directory, 'bin'), cfg['conda_exe'])
     environment_yml = cfg["environment_yml"]
 
-    cmd = f"{mamba_exe} env update --name=base --file={environment_yml}".split()
+    cmd = f"{exe} env update --name=base --file={environment_yml}".split()
     proc = subprocess.Popen(cmd, shell=False)
     proc.communicate()
     assert(proc.returncode == 0)
@@ -85,12 +95,12 @@ def update_environment():
 def clean_environment():
     """Delete pkg files and other unnecessary files from base environment.
     """
-    cfg = cfg_read()
+    cfg = get_cfg()
 
-    env_directory = os.path.join(cfg['mount_base_directory'], "condainer-"+cfg['uuid'])
-    mamba_exe = os.path.join(os.path.join(env_directory, 'bin'), 'mamba')
+    env_directory = get_env_directory(cfg)
+    exe = os.path.join(os.path.join(env_directory, 'bin'), cfg['conda_exe'])
 
-    cmd = f"{mamba_exe} clean --all --yes".split()
+    cmd = f"{exe} clean --all --yes".split()
     proc = subprocess.Popen(cmd, shell=False)
     proc.communicate()
     assert(proc.returncode == 0)
@@ -99,9 +109,9 @@ def clean_environment():
 def compress_environment():
     """Create squashfs image from base environment, delete base environment directory afterwards.
     """
-    cfg = cfg_read()
-    env_directory = os.path.join(cfg['mount_base_directory'], "condainer-"+cfg['uuid'])
-    squashfs_image = cfg['uuid']+".squashfs"
+    cfg = get_cfg()
+    env_directory = get_env_directory(cfg)
+    squashfs_image = cfg['image']
 
     cmd = f"mksquashfs {env_directory}/ {squashfs_image} -noappend".split()
     proc = subprocess.Popen(cmd, shell=False)
@@ -114,8 +124,8 @@ def compress_environment():
 def run_cmd(args):
     """Run command in a sub-process, where PATH is prepended with the 'bin' directory of the container.
     """
-    cfg = cfg_read()
-    env_directory = os.path.join(cfg['mount_base_directory'], "condainer-"+cfg['uuid'])
+    cfg = get_cfg()
+    env_directory = get_env_directory(cfg)
     bin_directory = os.path.join(env_directory, 'bin')
     env = copy.deepcopy(os.environ)
     env['PATH'] = bin_directory + ':' + env['PATH']
@@ -123,43 +133,56 @@ def run_cmd(args):
     proc.communicate()
 
 
-# --- condainer entry point functions ---
+# --- condainer entry point functions below ---
 
 
 def init(args):
     """Initialize directory with a usable configuration skeleton.
     """
+    # prioritize a locally provided installer, if available, expecting a full path
+    www_installer_url = 'https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh'
+    installer_url = os.environ.get('CONDAINER_INSTALLER')
+    if not installer_url:
+        installer_url = www_installer_url
+
     cfg = {}
     cfg['environment_yml'] = 'environment.yml'
-    cfg['uuid'] = str(uuid.uuid4())
+    cfg['installer_url'] = installer_url
+    cfg['conda_exe'] = 'mamba'
     cfg['mount_base_directory'] = '/tmp'
-    cfg['mamba_installer_url'] = 'https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh'
+    cfg['uuid'] = str(uuid.uuid4())
+    cfg['image'] = cfg['uuid']+".squashfs"
 
     condainer_yml = "condainer.yml"
     if not os.path.isfile(condainer_yml):
-        cfg_write(cfg)
+        write_cfg(cfg)
     else:
         print(f"STOP. Found existing file {condainer_yml}, please run `init` from an empty directory.")
         sys.exit(1)
 
-    conda_installer = os.path.basename(cfg['mamba_installer_url'])
-    if not os.path.isfile(conda_installer):
-        if not args.quiet:
-            print("Downloading Mamba installer ...")
-        cmd = f"curl -JLO {cfg['mamba_installer_url']}".split()
-        proc = subprocess.Popen(cmd, shell=False)
-        proc.communicate()
-        assert(proc.returncode == 0)
+    if cfg['installer_url'].startswith('http'):
+        conda_installer = os.path.basename(cfg['installer_url'])
+        if not os.path.isfile(conda_installer):
+            if not args.quiet:
+                print("Downloading conda installer ...")
+            cmd = f"curl -JLO {cfg['installer_url']}".split()
+            proc = subprocess.Popen(cmd, shell=False)
+            proc.communicate()
+            assert(proc.returncode == 0)
+        else:
+            if not args.quiet:
+                print(f"Found existing {conda_installer}, skipping download.")
     else:
         if not args.quiet:
-            print(f"Found existing {conda_installer}, skipping download.")
+            print(f"Using {cfg['installer_url']}")
+        assert(os.path.isfile(cfg['installer_url']))
 
 
 def build(args):
     """Create conda environment and create compressed squashfs image from it.
     """
-    cfg = cfg_read()
-    squashfs_image = cfg['uuid']+".squashfs"
+    cfg = get_cfg()
+    squashfs_image = cfg['image']
     if os.path.isfile(squashfs_image):
         print(f"STOP. Found existing image file {squashfs_image}, please remove this first.")
         sys.exit(1)
@@ -177,10 +200,10 @@ def mount(args):
         if not args.quiet:
             print("condainer already mounted, skipping")
     else:
-        cfg = cfg_read()
-        env_directory = os.path.join(cfg['mount_base_directory'], "condainer-"+cfg['uuid'])
+        cfg = get_cfg()
+        env_directory = get_env_directory(cfg)
         os.makedirs(env_directory, exist_ok=True)
-        squashfs_image = cfg['uuid']+".squashfs"
+        squashfs_image = cfg['image']
         cmd = f"squashfuse {squashfs_image} {env_directory}".split()
         proc = subprocess.Popen(cmd, shell=False)
         proc.communicate()
@@ -197,8 +220,8 @@ def umount(args):
     """Unmount squashfs image, skip if already unmounted.
     """
     if is_mounted():
-        cfg = cfg_read()
-        env_directory = os.path.join(cfg['mount_base_directory'], "condainer-"+cfg['uuid'])
+        cfg = get_cfg()
+        env_directory = get_env_directory(cfg)
         cmd = f"fusermount -u {env_directory}".split()
         proc = subprocess.Popen(cmd, shell=False)
         proc.communicate()
@@ -231,9 +254,9 @@ def prereq(args):
 def status(args):
     """Print status of the present Condainer.
     """
-    cfg = cfg_read()
-    env_directory = os.path.join(cfg['mount_base_directory'], "condainer-"+cfg['uuid'])
-    squashfs_image = cfg['uuid']+".squashfs"
+    cfg = get_cfg()
+    env_directory = get_env_directory(cfg)
+    squashfs_image = cfg['image']
     if not args.quiet:
         print(termcol.BOLD+"Condainer status"+termcol.ENDC)
         print(f" - project directory  : {os.getcwd()}")
@@ -243,7 +266,8 @@ def status(args):
 
 
 def test(args):
-    """Hidden dummy function for quick testing
+    """Dummy function for quick testing
     """
+    cfg = get_cfg()
     # print(is_mounted())
     pass
