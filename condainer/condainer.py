@@ -260,7 +260,7 @@ def mount(args):
     cfg = get_cfg()
     if is_mounted(cfg):
         if not args.quiet:
-            print("condainer already mounted, skipping")
+            print("hint: condainer already mounted")
     else:
         env_directory = get_env_directory(cfg)
         os.makedirs(env_directory, exist_ok=True)
@@ -293,7 +293,7 @@ def umount(args):
             pass
     else:
         if not args.quiet:
-            print("condainer already unmounted, skipping")
+            print("hint: condainer not mounted")
 
 
 def exec(args):
