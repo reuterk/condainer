@@ -96,10 +96,10 @@ def is_mounted(cfg):
     return q
 
 
-def get_lockfilename():
+def get_lockfilename(cfg):
     """Return lock file name unique to the present project and host name.
     """
-    return get_env_directory()+"-"+socket.gethostname()+".mutex"
+    return get_env_directory(cfg)+"-"+socket.gethostname()+".mutex"
 
 
 def acquire_lock(lock_file):
@@ -299,7 +299,8 @@ def umount(args):
 def exec(args):
     """Run command within container, set quiet mode for minimal inference with the command output.
     """
-    lock=acquire_lock(get_lockfilename())
+    cfg = get_cfg()
+    lock=acquire_lock(get_lockfilename(cfg))
     if lock:
         try:
             args.quiet = True
