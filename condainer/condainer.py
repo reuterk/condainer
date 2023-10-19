@@ -7,7 +7,9 @@ import sys
 import copy
 import yaml
 import uuid
+import fcntl
 import shutil
+import socket
 import subprocess
 
 
@@ -94,13 +96,42 @@ def is_mounted(cfg):
     return q
 
 
+def get_lockfilename():
+    """Return lock file name unique to the present project and host name.
+    """
+    return get_env_directory()+"-"+socket.gethostname()+".mutex"
+
+
+def acquire_lock(lock_file):
+    """Try to acquire a file-based mutex and return its file handle, or None.
+    """
+    try:
+        lock_fh = open(lock_file, 'w')
+        fcntl.flock(lock_fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return lock_fh
+    except BlockingIOError:
+        return None
+
+
+def release_lock(lock_fh):
+    """Release mutex, unlink lock file.
+    """
+    if lock_fh:
+        fcntl.flock(lock_fh, fcntl.LOCK_UN)
+        os.unlink(lock_fh.name)
+        lock_fh.close()
+
+
 def create_environment(cfg):
     """Create base environment.
     """
     conda_installer = get_installer_path(cfg)
     env_directory = get_env_directory(cfg)
     cmd = f"bash {conda_installer} -b -f -p {env_directory}".split()
-    proc = subprocess.Popen(cmd, shell=False)
+    env = copy.deepcopy(os.environ)
+    if "PYTHONPATH" in env:
+        del env["PYTHONPATH"]
+    proc = subprocess.Popen(cmd, shell=False, env=env)
     proc.communicate()
     assert(proc.returncode == 0)
 
@@ -158,7 +189,7 @@ def init(args):
     """Initialize directory with a usable configuration skeleton.
     """
     # prioritize a locally provided installer, if available, expecting a full path
-    www_installer_url = 'https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh'
+    www_installer_url = 'https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh'
     installer_url = os.environ.get('CONDAINER_INSTALLER')
     if not installer_url:
         installer_url = www_installer_url
@@ -268,10 +299,18 @@ def umount(args):
 def exec(args):
     """Run command within container, set quiet mode for minimal inference with the command output.
     """
-    args.quiet = True
-    mount(args)
-    run_cmd(args)
-    umount(args)
+    lock=acquire_lock(get_lockfilename())
+    if lock:
+        try:
+            args.quiet = True
+            mount(args)
+            run_cmd(args)
+            umount(args)
+        finally:
+            release_lock(lock)
+    else:
+        print("Only one instance of `condainer exec` can be run at the same time. STOP.")
+        sys.exit(1)
 
 
 def prereq(args):
