@@ -96,6 +96,12 @@ def is_mounted(cfg):
     return q
 
 
+def get_image_filename(cfg):
+    """Return image filename which is UUID.squashfs by convention.
+    """
+    return cfg['uuid']+".squashfs"
+
+
 def get_lockfilename(cfg):
     """Return lock file name unique to the present project and host name.
     """
@@ -122,7 +128,7 @@ def release_lock(lock_fh):
         lock_fh.close()
 
 
-def create_environment(cfg):
+def create_base_environment(cfg):
     """Create base environment.
     """
     conda_installer = get_installer_path(cfg)
@@ -136,13 +142,13 @@ def create_environment(cfg):
     assert(proc.returncode == 0)
 
 
-def update_environment(cfg):
-    """Install user-defined software stack (environment.yml) into base environment.
+def create_condainer_environment(cfg):
+    """Install user-defined software stack (environment.yml) into 'condainer' environment.
     """
     env_directory = get_env_directory(cfg)
     exe = os.path.join(os.path.join(env_directory, 'bin'), cfg['conda_exe'])
     environment_yml = cfg["environment_yml"]
-    cmd = f"{exe} env update --name=base --file={environment_yml}".split()
+    cmd = f"{exe} env create --file {environment_yml} --name condainer".split()
     proc = subprocess.Popen(cmd, shell=False)
     proc.communicate()
     assert(proc.returncode == 0)
@@ -163,7 +169,7 @@ def compress_environment(cfg):
     """Create squashfs image from base environment.
     """
     env_directory = get_env_directory(cfg)
-    squashfs_image = cfg['image']
+    squashfs_image = get_image_filename(cfg)
     cmd = f"mksquashfs {env_directory}/ {squashfs_image} -noappend".split()
     proc = subprocess.Popen(cmd, shell=False)
     proc.communicate()
@@ -171,11 +177,11 @@ def compress_environment(cfg):
 
 
 def run_cmd(args):
-    """Run container command in a sub-process, where PATH is prepended with the 'bin' directory of the container.
+    """Run command in a sub-process, where PATH is prepended with the 'bin' directory of the 'condainer' environment in the container.
     """
     cfg = get_cfg()
     env_directory = get_env_directory(cfg)
-    bin_directory = os.path.join(env_directory, 'bin')
+    bin_directory = os.path.join(env_directory, 'envs', 'condainer', 'bin')
     env = copy.deepcopy(os.environ)
     env['PATH'] = bin_directory + ':' + env['PATH']
     proc = subprocess.Popen(args.command, env=env, shell=False)
@@ -200,7 +206,6 @@ def init(args):
     cfg['conda_exe'] = 'mamba'
     cfg['mount_base_directory'] = '/tmp'
     cfg['uuid'] = str(uuid.uuid4())
-    cfg['image'] = cfg['uuid']+".squashfs"
 
     condainer_yml = "condainer.yml"
     if not os.path.isfile(condainer_yml):
@@ -233,7 +238,7 @@ def build(args):
     """Create conda environment and create compressed squashfs image from it.
     """
     cfg = get_cfg()
-    squashfs_image = cfg['image']
+    squashfs_image = get_image_filename(cfg)
     env_directory = get_env_directory(cfg)
     if os.path.isfile(squashfs_image):
         print(f"STOP. Found existing image file {squashfs_image}, please remove this first.")
@@ -244,8 +249,8 @@ def build(args):
     else:
         try:
             os.makedirs(env_directory, exist_ok=True)
-            create_environment(cfg)
-            update_environment(cfg)
+            create_base_environment(cfg)
+            create_condainer_environment(cfg)
             clean_environment(cfg)
             compress_environment(cfg)
         except:
@@ -264,7 +269,7 @@ def mount(args):
     else:
         env_directory = get_env_directory(cfg)
         os.makedirs(env_directory, exist_ok=True)
-        squashfs_image = cfg['image']
+        squashfs_image = get_image_filename(cfg)
         cmd = f"squashfuse {squashfs_image} {env_directory}".split()
         proc = subprocess.Popen(cmd, shell=False)
         proc.communicate()
@@ -272,7 +277,7 @@ def mount(args):
         if not args.quiet:
             activate = os.path.join(os.path.join(env_directory, 'bin'), 'activate')
             print(termcol.BOLD+"Environment usage in the present shell"+termcol.ENDC)
-            print( " - enable command  : "+termcol.BOLD+termcol.CYAN+f"source {activate}"+termcol.ENDC)
+            print( " - enable command  : "+termcol.BOLD+termcol.CYAN+f"source {activate} condainer"+termcol.ENDC)
             print( " - disable command : "+termcol.BOLD+termcol.RED+f"conda deactivate"+termcol.ENDC)
             # print(termcol.BOLD+"OK"+termcol.ENDC)
 
@@ -328,7 +333,7 @@ def status(args):
     cfg = get_cfg()
     print(termcol.BOLD+"Condainer status"+termcol.ENDC)
     print(f" - project directory : {os.getcwd()}")
-    print(f" - squashfs image    : {cfg['image']}")
+    print(f" - squashfs image    : {get_image_filename(cfg)}")
     print(f" - fuse mount point  : {get_env_directory(cfg)}")
     print(f" - image mounted     : {is_mounted(cfg)}")
 

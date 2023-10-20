@@ -17,7 +17,6 @@ setup(
         'PyYAML',
     ],
     entry_points={
-        'console_scripts': ['condainer=condainer.main:cli']
+        'console_scripts': ['cnd=condainer.main:cli']
     },
 )
-
