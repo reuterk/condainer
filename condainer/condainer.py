@@ -309,9 +309,12 @@ def exec(args):
     if lock:
         try:
             args.quiet = True
-            mount(args)
+            mount_required = not is_mounted(cfg)
+            if mount_required:
+                mount(args)
             run_cmd(args)
-            umount(args)
+            if mount_required:
+                umount(args)
         finally:
             release_lock(lock)
     else:
