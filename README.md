@@ -81,7 +81,7 @@ Using a command of the form `cnd exec -- python3 myscript.py`
 it is possible to run executables from the contained conda
 installation directly, in the present example the Python interpreter
 `python3`.  Mounting and unmounting of the squashfs image are
-handled automatically and invisible to the user.  Note that the '--'
+handled automatically and invisibly to the user.  Note that the '--'
 is a necessary separator to be able to pass arguments and flags to
 the executable.  It can be omitted in case there are no arguments or
 flags.
@@ -91,11 +91,13 @@ flags.
 The command `cnd mount` mounts the squashfs image at the base
 location specified in `condainer.yml`. Mount points have the form of
 `cnd-UUID` where UUID is the type4 UUID generated and saved
-during `cnd init`.
+during `cnd init`. Hints on activating and deactivating the
+conda environment are printed.
 
 ### Explicitly un-mount the squashfs image using `cnd umount`
 
-Unmount the image, if mounted.
+Unmount the image, if mounted. Make sure to run `conda deactivate` 
+in all relevant shell sessions prior to unmounting.
 
 ### Print information using `cnd status`
 
@@ -115,3 +117,9 @@ of tools available and enabled for non-privileged users:
 * fuse
 * squashfuse
 * curl
+
+On an Ubuntu (or similar) system, run (as root) the command
+
+`apt install squashfs-tools squashfuse`
+
+to install the necessary tools.
