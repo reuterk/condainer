@@ -103,6 +103,7 @@ def get_image_filename(cfg):
 
 
 def get_activate_cmd(cfg):
+    env_directory = get_env_directory(cfg)
     activate = os.path.join(os.path.join(env_directory, 'bin'), 'activate')
     return f"source {activate} condainer"
 
