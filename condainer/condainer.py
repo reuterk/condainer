@@ -102,6 +102,29 @@ def get_image_filename(cfg):
     return cfg['uuid']+".squashfs"
 
 
+def get_activate_cmd(cfg):
+    activate = os.path.join(os.path.join(env_directory, 'bin'), 'activate')
+    return f"source {activate} condainer"
+
+
+def write_activate_script(cfg):
+    with open("activate", 'w') as fp:
+        fp.write("# usage: source activate\n")
+        fp.write("# (must be sourced from the condainer project directory)\n")
+        fp.write("cnd --quiet mount\n")
+        cmd = get_activate_cmd(cfg)
+        fp.write(f"{cmd}\n")
+    os.chmod("activate", 0o755)
+
+
+def write_deactivate_script(cfg):
+    with open("deactivate", 'w') as fp:
+        fp.write("# usage: source deactivate\n")
+        cmd = "conda deactivate"
+        fp.write(f"{cmd}\n")
+    os.chmod("deactivate", 0o755)
+
+
 def get_lockfilename(cfg):
     """Return lock file name unique to the present project and host name.
     """
@@ -253,6 +276,8 @@ def build(args):
             create_condainer_environment(cfg)
             clean_environment(cfg)
             compress_environment(cfg)
+            write_activate_script(cfg)
+            write_deactivate_script(cfg)
         except:
             raise
         finally:
@@ -275,9 +300,9 @@ def mount(args):
         proc.communicate()
         assert(proc.returncode == 0)
         if not args.quiet:
-            activate = os.path.join(os.path.join(env_directory, 'bin'), 'activate')
+            activate = get_activate_cmd(cfg)
             print(termcol.BOLD+"Environment usage in the present shell"+termcol.ENDC)
-            print( " - enable command  : "+termcol.BOLD+termcol.CYAN+f"source {activate} condainer"+termcol.ENDC)
+            print( " - enable command  : "+termcol.BOLD+termcol.CYAN+f"{activate}"+termcol.ENDC)
             print( " - disable command : "+termcol.BOLD+termcol.RED+f"conda deactivate"+termcol.ENDC)
             # print(termcol.BOLD+"OK"+termcol.ENDC)
 
