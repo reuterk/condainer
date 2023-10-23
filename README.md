@@ -1,10 +1,43 @@
-# Condainer - Conda environments in squashfs images
+# Condainer - Conda environments for HPC systems
 
-## Overview
+## TL;DR - Quick start guide
 
-### Conda environments on HPC systems and their issues
+Condainer puts Conda environments into compressed squashfs images which makes
+the use of such environments much more efficient, in particular on HPC systems.
+To this end, Condainer implements some lightweight container-like functionality.
 
-The `conda` package manager and related workflows have become an
+### Build the compressed environment
+
+Starting in an empty directory, use the following commands once to build a compressed image of your Conda environment defined by 'environment.yml':
+
+```bash
+cnd init
+cnd build --file environment.yml
+```
+
+### Activate the compressed environment
+
+After building successfully, you can activate the environment for your current shell session, just like with plain conda:
+
+```bash
+source activate
+```
+
+### Alternatively, run an executable from the compressed environment without activating it
+
+In case you do not want to activate the environment, you can run individual executables from the environment transparently, e.g.
+
+```bash
+cnd exec -- python3
+```
+
+Please see below for more detailed explanations and more options.
+
+## Background
+
+### Problem: Conda environments on HPC systems
+
+The Conda package manager and related workflows have become an
 adopted standard when it comes to distributing scientific software
 for easy installation by end users. It not only handles native
 Python packages but also manages dependencies in the form of
