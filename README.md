@@ -12,7 +12,8 @@ Starting in an empty directory, use the following commands once to build a compr
 
 ```bash
 cnd init
-cnd build --file environment.yml
+# now, edit the provided example 'environment.yml' file, or copy your own file here, before running
+cnd build
 ```
 
 ### Activate the compressed environment
