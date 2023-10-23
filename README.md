@@ -119,6 +119,12 @@ is a necessary separator to be able to pass arguments and flags to
 the executable.  It can be omitted in case there are no arguments or
 flags.
 
+### Activate the environment
+
+In the project directory, run `source activate` to activate the 
+compressed environment for your current shell session.  Similarly,
+run `source deactivate` to deactivate it.
+
 ### Explicitly mount the squashfs image using `cnd mount`
 
 The command `cnd mount` mounts the squashfs image at the base
