@@ -273,7 +273,7 @@ def build(args):
         sys.exit(1)
     else:
         try:
-            os.makedirs(env_directory, exist_ok=True)
+            os.makedirs(env_directory, exist_ok=True, mode=0o700)
             create_base_environment(cfg)
             create_condainer_environment(cfg)
             clean_environment(cfg)
@@ -295,7 +295,7 @@ def mount(args):
             print("hint: condainer already mounted")
     else:
         env_directory = get_env_directory(cfg)
-        os.makedirs(env_directory, exist_ok=True)
+        os.makedirs(env_directory, exist_ok=True, mode=0o700)
         squashfs_image = get_image_filename(cfg)
         cmd = f"squashfuse {squashfs_image} {env_directory}".split()
         proc = subprocess.Popen(cmd, shell=False)
