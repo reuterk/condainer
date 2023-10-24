@@ -201,7 +201,7 @@ def compress_environment(cfg):
     assert(proc.returncode == 0)
 
 
-def run_cmd(args):
+def run_cmd(args, cwd):
     """Run command in a sub-process, where PATH is prepended with the 'bin' directory of the 'condainer' environment in the container.
     """
     cfg = get_cfg()
@@ -209,7 +209,7 @@ def run_cmd(args):
     bin_directory = os.path.join(env_directory, 'envs', 'condainer', 'bin')
     env = copy.deepcopy(os.environ)
     env['PATH'] = bin_directory + ':' + env['PATH']
-    proc = subprocess.Popen(args.command, env=env, shell=False)
+    proc = subprocess.Popen(args.command, cwd=cwd, env=env, shell=False)
     proc.communicate()
 
 
@@ -328,7 +328,7 @@ def umount(args):
             print("hint: condainer not mounted")
 
 
-def exec(args):
+def exec(args, cwd):
     """Run command within container, set quiet mode for minimal inference with the command output.
     """
     cfg = get_cfg()
@@ -339,7 +339,7 @@ def exec(args):
             mount_required = not is_mounted(cfg)
             if mount_required:
                 mount(args)
-            run_cmd(args)
+            run_cmd(args, cwd)
             if mount_required:
                 umount(args)
         finally:
