@@ -26,7 +26,7 @@ class termcol:
 
 def get_example_environment_yml():
     raw = \
-"""
+"""#
 name: basic
 channels:
   - conda-forge
@@ -35,7 +35,7 @@ dependencies:
   - pip
   #- numpy
 """
-    return yaml.safe_load(raw)
+    return raw
 
 
 def write_example_environment_yml():
@@ -46,9 +46,8 @@ def write_example_environment_yml():
         fp.write("# This file is only provided as an example, replace it with your own file!\n")
         fp.write("# Hints on editing manually are available online:\n")
         fp.write("# https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-file-manually\n")
-        fp.write("#\n")
         environment_yml = get_example_environment_yml()
-        fp.write(yaml.safe_dump(environment_yml, sort_keys=False))
+        fp.write(environment_yml)
 
 
 def write_cfg(cfg):
