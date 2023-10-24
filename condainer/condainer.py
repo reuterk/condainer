@@ -27,12 +27,13 @@ class termcol:
 def get_example_environment_yml():
     raw = \
 """
-name: basicnumpy
+name: basic
 channels:
   - conda-forge
 dependencies:
   - python=3.9
-  - numpy
+  - pip
+  #- numpy
 """
     return yaml.safe_load(raw)
 
@@ -174,9 +175,28 @@ def create_condainer_environment(cfg):
     exe = os.path.join(os.path.join(env_directory, 'bin'), cfg['conda_exe'])
     environment_yml = cfg["environment_yml"]
     cmd = f"{exe} env create --file {environment_yml} --name condainer".split()
-    proc = subprocess.Popen(cmd, shell=False)
+    env = copy.deepcopy(os.environ)
+    if "PYTHONPATH" in env:
+        del env["PYTHONPATH"]
+    proc = subprocess.Popen(cmd, shell=False, env=env)
     proc.communicate()
     assert(proc.returncode == 0)
+
+
+def pip_condainer_environment(cfg):
+    """Install user-defined software stack (requirements.txt) into 'condainer' environment.
+    """
+    env_directory = get_env_directory(cfg)
+    exe = os.path.join(os.path.join(env_directory, 'bin'), 'pip3')
+    requirements_txt = cfg["requirements_txt"]
+    if os.path.isfile(requirements_txt):
+        cmd = f"{exe} install --requirement {requirements_txt} --no-cache-dir".split()
+        env = copy.deepcopy(os.environ)
+        if "PYTHONPATH" in env:
+            del env["PYTHONPATH"]
+        proc = subprocess.Popen(cmd, shell=False, env=env)
+        proc.communicate()
+        assert(proc.returncode == 0)
 
 
 def clean_environment(cfg):
@@ -185,7 +205,10 @@ def clean_environment(cfg):
     env_directory = get_env_directory(cfg)
     exe = os.path.join(os.path.join(env_directory, 'bin'), cfg['conda_exe'])
     cmd = f"{exe} clean --all --yes".split()
-    proc = subprocess.Popen(cmd, shell=False)
+    env = copy.deepcopy(os.environ)
+    if "PYTHONPATH" in env:
+        del env["PYTHONPATH"]
+    proc = subprocess.Popen(cmd, shell=False, env=env)
     proc.communicate()
     assert(proc.returncode == 0)
 
@@ -227,6 +250,7 @@ def init(args):
 
     cfg = {}
     cfg['environment_yml'] = 'environment.yml'
+    cfg["requirements_txt"] = 'requirements.txt'
     cfg['installer_url'] = installer_url
     cfg['conda_exe'] = 'mamba'
     cfg['mount_base_directory'] = '/tmp'
@@ -276,6 +300,7 @@ def build(args):
             os.makedirs(env_directory, exist_ok=True, mode=0o700)
             create_base_environment(cfg)
             create_condainer_environment(cfg)
+            pip_condainer_environment(cfg)
             clean_environment(cfg)
             compress_environment(cfg)
             write_activate_script(cfg)

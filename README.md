@@ -106,8 +106,10 @@ to the same directory.
 
 ### Build and compress an environment using `cnd build`
 
-Build the conda environment specified in `environment.yml` and
-create a compressed squashfs image.
+Build the conda environment specified in `environment.yml`.  In case
+a file `requirements.txt` is present, its contents will be installed
+additionally using `pip`.  Finally, create a compressed
+squashfs image, and delete the files from staging the environment.
 
 ### Execute a command using `cnd exec`
 
