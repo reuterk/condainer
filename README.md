@@ -95,6 +95,7 @@ which would place the executable `cnd` into `~/.local/bin`.
 
 ## Usage
 
+The Condainer executable is `cnd` and is controlled via subcommands and flags. See `cnd --help` for details.
 The following subcommands are available with Condainer:
 
 ### Initialize a project using `cnd init`
