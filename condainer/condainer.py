@@ -123,7 +123,7 @@ def write_deactivate_script(cfg):
         fp.write("# usage: source deactivate\n")
         cmd = "conda deactivate"
         fp.write(f"{cmd}\n")
-        fp.write("echo \"Hint: Run  cnd umount  now in case the environment is not activated in any other shell.\"\n")
+        fp.write("echo \"Hint: In case the environment is not activated in any other shell, please run now: cnd umount\"\n")
     os.chmod("deactivate", 0o755)
 
 
