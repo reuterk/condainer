@@ -17,11 +17,13 @@ def get_args():
     )
     parser.add_argument('-q', '--quiet', action='store_true', help='be quiet, do not write to stdout unless an error occurs')
     parser.add_argument('-d', '--directory', help='condainer project directory, the default is the current working directory')
+    parser.add_argument('-y', '--dryrun', action='store_true', help='dry run, do not actually do any operations, instead print information on what would be done')
 
     subparsers   = parser.add_subparsers(dest='subcommand', required=True)
 
     subparsers.add_parser('init', help='initialize directory with config files')
-    subparsers.add_parser('build', help='build containerized conda environment')
+    parser_build = subparsers.add_parser('build', help='build containerized conda environment')
+    parser_build.add_argument('-s', '--steps', type=str, default="1,2,3,4,5,6,7", help='debug option to select individual build steps, default is all steps: 1,2,3,4,5,6,7')
 
     parser_exec = subparsers.add_parser('exec', help='execute command within containerized conda environment')
     parser_exec.add_argument('command', type=str, nargs='+', help='command line of the containerized command')

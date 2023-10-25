@@ -158,13 +158,16 @@ def create_base_environment(cfg):
     """
     conda_installer = get_installer_path(cfg)
     env_directory = get_env_directory(cfg)
-    cmd = f"bash {conda_installer} -b -f -p {env_directory}".split()
+    cmd = f"/bin/bash {conda_installer} -b -f -p {env_directory}".split()
     env = copy.deepcopy(os.environ)
     if "PYTHONPATH" in env:
         del env["PYTHONPATH"]
-    proc = subprocess.Popen(cmd, shell=False, env=env)
-    proc.communicate()
-    assert(proc.returncode == 0)
+    if cfg.get("dryrun"):
+        print(f"dryrun: {' '.join(cmd)}")
+    else:
+        proc = subprocess.Popen(cmd, shell=False, env=env)
+        proc.communicate()
+        assert(proc.returncode == 0)
 
 
 def create_condainer_environment(cfg):
@@ -177,9 +180,12 @@ def create_condainer_environment(cfg):
     env = copy.deepcopy(os.environ)
     if "PYTHONPATH" in env:
         del env["PYTHONPATH"]
-    proc = subprocess.Popen(cmd, shell=False, env=env)
-    proc.communicate()
-    assert(proc.returncode == 0)
+    if cfg.get("dryrun"):
+        print(f"dryrun: {' '.join(cmd)}")
+    else:
+        proc = subprocess.Popen(cmd, shell=False, env=env)
+        proc.communicate()
+        assert(proc.returncode == 0)
 
 
 def pip_condainer_environment(cfg):
@@ -193,9 +199,15 @@ def pip_condainer_environment(cfg):
         env = copy.deepcopy(os.environ)
         if "PYTHONPATH" in env:
             del env["PYTHONPATH"]
-        proc = subprocess.Popen(cmd, shell=False, env=env)
-        proc.communicate()
-        assert(proc.returncode == 0)
+        if cfg.get("dryrun"):
+            print(f"dryrun: {' '.join(cmd)}")
+        else:
+            proc = subprocess.Popen(cmd, shell=False, env=env)
+            proc.communicate()
+            assert(proc.returncode == 0)
+    else:
+        if not cfg.get("quiet"):
+            print(f"{requirements_txt} not found, skipping pip")
 
 
 def clean_environment(cfg):
@@ -207,9 +219,12 @@ def clean_environment(cfg):
     env = copy.deepcopy(os.environ)
     if "PYTHONPATH" in env:
         del env["PYTHONPATH"]
-    proc = subprocess.Popen(cmd, shell=False, env=env)
-    proc.communicate()
-    assert(proc.returncode == 0)
+    if cfg.get("dryrun"):
+        print(f"dryrun: {' '.join(cmd)}")
+    else:
+        proc = subprocess.Popen(cmd, shell=False, env=env)
+        proc.communicate()
+        assert(proc.returncode == 0)
 
 
 def compress_environment(cfg):
@@ -218,9 +233,12 @@ def compress_environment(cfg):
     env_directory = get_env_directory(cfg)
     squashfs_image = get_image_filename(cfg)
     cmd = f"mksquashfs {env_directory}/ {squashfs_image} -noappend".split()
-    proc = subprocess.Popen(cmd, shell=False)
-    proc.communicate()
-    assert(proc.returncode == 0)
+    if cfg.get("dryrun"):
+        print(f"dryrun: {' '.join(cmd)}")
+    else:
+        proc = subprocess.Popen(cmd, shell=False)
+        proc.communicate()
+        assert(proc.returncode == 0)
 
 
 def run_cmd(args, cwd):
@@ -231,8 +249,11 @@ def run_cmd(args, cwd):
     bin_directory = os.path.join(env_directory, 'envs', 'condainer', 'bin')
     env = copy.deepcopy(os.environ)
     env['PATH'] = bin_directory + ':' + env['PATH']
-    proc = subprocess.Popen(args.command, cwd=cwd, env=env, shell=False)
-    proc.communicate()
+    if args.dryrun:
+        print(f"dryrun: {bin_directory}:{args.command}")
+    else:
+        proc = subprocess.Popen(args.command, cwd=cwd, env=env, shell=False)
+        proc.communicate()
 
 
 # --- condainer entry point functions below ---
@@ -257,7 +278,8 @@ def init(args):
 
     condainer_yml = "condainer.yml"
     if not os.path.isfile(condainer_yml):
-        write_cfg(cfg)
+        if not args.dryrun:
+            write_cfg(cfg)
     else:
         print(f"STOP. Found existing file {condainer_yml}, please run `init` from an empty directory.")
         sys.exit(1)
@@ -268,24 +290,30 @@ def init(args):
             if not args.quiet:
                 print("Downloading conda installer ...")
             cmd = f"curl -JLO {cfg['installer_url']}".split()
-            proc = subprocess.Popen(cmd, shell=False)
-            proc.communicate()
-            assert(proc.returncode == 0)
+            if args.dryrun:
+                print(f"dryrun: {' '.join(cmd)}")
+            else:
+                proc = subprocess.Popen(cmd, shell=False)
+                proc.communicate()
+                assert(proc.returncode == 0)
         else:
             if not args.quiet:
-                print(f"Found existing installer {conda_installer}, skipping download.")
+                print(f"found existing installer {conda_installer}, skipping download")
     else:
         if not args.quiet:
-            print(f"Using installer {cfg['installer_url']}")
+            print(f"using installer {cfg['installer_url']}")
         assert(os.path.isfile(cfg['installer_url']))
 
-    write_example_environment_yml()
+    if not args.dryrun:
+        write_example_environment_yml()
 
 
 def build(args):
     """Create conda environment and create compressed squashfs image from it.
     """
     cfg = get_cfg()
+    cfg["quiet"] = args.quiet
+    cfg["dryrun"] = args.dryrun
     squashfs_image = get_image_filename(cfg)
     env_directory = get_env_directory(cfg)
     if os.path.isfile(squashfs_image):
@@ -296,18 +324,50 @@ def build(args):
         sys.exit(1)
     else:
         try:
-            os.makedirs(env_directory, exist_ok=True, mode=0o700)
-            create_base_environment(cfg)
-            create_condainer_environment(cfg)
-            pip_condainer_environment(cfg)
-            clean_environment(cfg)
-            compress_environment(cfg)
-            write_activate_script(cfg)
-            write_deactivate_script(cfg)
+            steps = {int(i) for i in args.steps.split(',')}
+            if not args.quiet:
+                print(termcol.BOLD+"Starting Condainer build process ..."+termcol.ENDC)
+            if not args.dryrun:
+                os.makedirs(env_directory, exist_ok=True, mode=0o700)
+            if 1 in steps:
+                if not args.quiet:
+                    print(termcol.BOLD+termcol.CYAN+"1) Creating \"base\" environment ..."+termcol.ENDC)
+                create_base_environment(cfg)
+            if 2 in steps:
+                if not args.quiet:
+                    print(termcol.BOLD+termcol.CYAN+f"2) Creating \"condainer\" environment from {cfg['environment_yml']} ..."+termcol.ENDC)
+                create_condainer_environment(cfg)
+            if 3 in steps:
+                if not args.quiet:
+                    print(termcol.BOLD+termcol.CYAN+f"3) Adding packages from {cfg['requirements_txt']} via pip ..."+termcol.ENDC)
+                pip_condainer_environment(cfg)
+            if 4 in steps:
+                if not args.quiet:
+                    print(termcol.BOLD+termcol.CYAN+"4) Cleaning environments from unnecessary files ..."+termcol.ENDC)
+                clean_environment(cfg)
+            if 5 in steps:
+                if not args.quiet:
+                    print(termcol.BOLD+termcol.CYAN+"5) Compressing installation directory into SquashFS image ..."+termcol.ENDC)
+                compress_environment(cfg)
+            if 6 in steps:
+                if not args.quiet:
+                    print(termcol.BOLD+termcol.CYAN+"6) Creating activate and deactivate scripts ..."+termcol.ENDC)
+                if args.dryrun:
+                    print("dryrun: skipping")
+                else:
+                    write_activate_script(cfg)
+                    write_deactivate_script(cfg)
         except:
             raise
         finally:
-            shutil.rmtree(env_directory)
+            if not args.quiet:
+                print(termcol.BOLD+termcol.CYAN+"7) Cleaning up ..."+termcol.ENDC)
+            if args.dryrun:
+                print("dryrun: skipping")
+            else:
+                shutil.rmtree(env_directory)
+            if not args.quiet:
+                print(termcol.BOLD+"Done!"+termcol.ENDC)
 
 
 def mount(args):
@@ -322,9 +382,12 @@ def mount(args):
         os.makedirs(env_directory, exist_ok=True, mode=0o700)
         squashfs_image = get_image_filename(cfg)
         cmd = f"squashfuse {squashfs_image} {env_directory}".split()
-        proc = subprocess.Popen(cmd, shell=False)
-        proc.communicate()
-        assert(proc.returncode == 0)
+        if args.dryrun:
+            print(f"dryrun: {' '.join(cmd)}")
+        else:
+            proc = subprocess.Popen(cmd, shell=False)
+            proc.communicate()
+            assert(proc.returncode == 0)
         if not args.quiet:
             activate = get_activate_cmd(cfg)
             print(termcol.BOLD+"Environment usage in the present shell"+termcol.ENDC)
@@ -340,10 +403,13 @@ def umount(args):
     if is_mounted(cfg):
         env_directory = get_env_directory(cfg)
         cmd = f"fusermount -u {env_directory}".split()
-        proc = subprocess.Popen(cmd, shell=False)
-        proc.communicate()
-        assert(proc.returncode == 0)
-        shutil.rmtree(env_directory)
+        if args.dryrun:
+            print(f"dryrun: {' '.join(cmd)}")
+        else:
+            proc = subprocess.Popen(cmd, shell=False)
+            proc.communicate()
+            assert(proc.returncode == 0)
+            shutil.rmtree(env_directory)
         if not args.quiet:
             # print(termcol.BOLD+"OK"+termcol.ENDC)
             pass
@@ -397,4 +463,5 @@ def test(args):
     """
     # cfg = get_cfg()
     # print(is_mounted(cfg))
+    print(args)
     pass

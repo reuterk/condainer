@@ -7,6 +7,17 @@ basic:
     - module load anaconda/3/2023.03
   script:
     - pip3 install --user -e .
+    - mkdir test
+    - pushd test
     - ~/.local/bin/cnd --help
+    - ~/.local/bin/cnd --dryrun init
+    - touch Miniforge3-Linux-x86_64.sh
+    - ~/.local/bin/cnd init
+    - ~/.local/bin/cnd --dryrun build
+    - ~/.local/bin/cnd --dryrun --steps 1,2,3,7 build
+    - ~/.local/bin/cnd --dryrun mount
+    - ~/.local/bin/cnd --dryrun umount
+    - ~/.local/bin/cnd --dryrun exec -- python3
+    - popd
   only:
     - master
