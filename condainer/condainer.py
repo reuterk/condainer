@@ -323,8 +323,8 @@ def build(args):
         print(f"STOP. Mount point {env_directory} is in use, please unmount first.")
         sys.exit(1)
     else:
+        steps = {int(i) for i in args.steps.split(',')}
         try:
-            steps = {int(i) for i in args.steps.split(',')}
             if not args.quiet:
                 print(termcol.BOLD+"Starting Condainer build process ..."+termcol.ENDC)
             if not args.dryrun:
@@ -360,12 +360,13 @@ def build(args):
         except:
             raise
         finally:
-            if not args.quiet:
-                print(termcol.BOLD+termcol.CYAN+"7) Cleaning up ..."+termcol.ENDC)
-            if args.dryrun:
-                print("dryrun: skipping")
-            else:
-                shutil.rmtree(env_directory)
+            if 7 in steps:
+                if not args.quiet:
+                    print(termcol.BOLD+termcol.CYAN+"7) Cleaning up ..."+termcol.ENDC)
+                if args.dryrun:
+                    print("dryrun: skipping")
+                else:
+                    shutil.rmtree(env_directory)
             if not args.quiet:
                 print(termcol.BOLD+"Done!"+termcol.ENDC)
 
