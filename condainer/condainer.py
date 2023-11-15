@@ -72,7 +72,13 @@ def get_cfg():
 
 
 def get_env_directory(cfg):
-    return os.path.join(cfg['mount_base_directory'], "condainer-"+cfg['uuid'])
+    if cfg.get('multiuser_mountpoint'):
+        suffix = '-' + os.getlogin()
+        if os.environ.get('SLURM_JOB_ID'):
+            suffix = suffix + '-' + os.environ.get('SLURM_JOB_ID')
+    else:
+        suffix = ''
+    return os.path.join(cfg['mount_base_directory'], "condainer-"+cfg['uuid']+suffix)
 
 
 def get_installer_path(cfg):
@@ -97,7 +103,7 @@ def is_mounted(cfg):
 
 
 def get_image_filename(cfg):
-    """Return image filename which is UUID.squashfs by convention.
+    """Return image filename which is 'UUID.squashfs' by convention.
     """
     return cfg['uuid']+".squashfs"
 
@@ -111,19 +117,24 @@ def get_activate_cmd(cfg):
 def write_activate_script(cfg):
     with open("activate", 'w') as fp:
         fp.write("# usage: source activate\n")
-        fp.write("# (must be sourced from the condainer project directory)\n")
+        fp.write("# - must be sourced from the condainer project directory\n")
+        fp.write("# - only bourne shells are supported, such as bash or zsh\n")
         fp.write("cnd --quiet mount\n")
         cmd = get_activate_cmd(cfg)
         fp.write(f"{cmd}\n")
+        # rewrite, to have CND_ENV_DIR dynamic to support multiuser_mount_point
+        # fp.write("CND_ENV_DIR=`cnd --quiet mount --print`\n")
+        # fp.write("source ${CND_ENV_DIR}/bin/activate condainer\n")
     os.chmod("activate", 0o755)
 
 
 def write_deactivate_script(cfg):
     with open("deactivate", 'w') as fp:
         fp.write("# usage: source deactivate\n")
+        fp.write("# - only bourne shells are supported, such as bash or zsh\n")
         cmd = "conda deactivate"
         fp.write(f"{cmd}\n")
-        fp.write("echo \"Hint: In case the environment is not activated in any other shell, please run now: cnd umount\"\n")
+        fp.write("[[ $- == *i* ]] && echo \"Hint: In case the environment is not activated in any other shell, please run now: cnd umount\"\n")
     os.chmod("deactivate", 0o755)
 
 
@@ -246,7 +257,10 @@ def run_cmd(args, cwd):
     """
     cfg = get_cfg()
     env_directory = get_env_directory(cfg)
-    bin_directory = os.path.join(env_directory, 'envs', 'condainer', 'bin')
+    if cfg.get('non_conda_application'):
+        bin_directory = os.path.join(env_directory, 'bin')
+    else:
+        bin_directory = os.path.join(env_directory, 'envs', 'condainer', 'bin')
     env = copy.deepcopy(os.environ)
     env['PATH'] = bin_directory + ':' + env['PATH']
     if args.dryrun:
@@ -269,12 +283,19 @@ def init(args):
         installer_url = www_installer_url
 
     cfg = {}
+    # --- base settings ---
+    cfg['mount_base_directory'] = '/tmp'
+    cfg['uuid'] = str(uuid.uuid4())
+    # --- conda-related settings ---
     cfg['environment_yml'] = 'environment.yml'
     cfg["requirements_txt"] = 'requirements.txt'
     cfg['installer_url'] = installer_url
     cfg['conda_exe'] = 'mamba'
-    cfg['mount_base_directory'] = '/tmp'
-    cfg['uuid'] = str(uuid.uuid4())
+    # --- advanced: non-conda application, e.g. Matlab, default False ---
+    cfg['non_conda_application'] = args.non_conda_application
+    # The following flag can be added later to the config file, e.g. when building and compressing via the OBS
+    # For some applications, this would work (Matlab), for others not (Conda):
+    #cfg['multiuser_mountpoint'] = False
 
     condainer_yml = "condainer.yml"
     if not os.path.isfile(condainer_yml):
@@ -284,28 +305,33 @@ def init(args):
         print(f"STOP. Found existing file {condainer_yml}, please run `init` from an empty directory.")
         sys.exit(1)
 
-    if cfg['installer_url'].startswith('http'):
-        conda_installer = os.path.basename(cfg['installer_url'])
-        if not os.path.isfile(conda_installer):
-            if not args.quiet:
-                print("Downloading conda installer ...")
-            cmd = f"curl -JLO {cfg['installer_url']}".split()
-            if args.dryrun:
-                print(f"dryrun: {' '.join(cmd)}")
+    if not cfg.get('non_conda_application'):
+        if cfg['installer_url'].startswith('http'):
+            conda_installer = os.path.basename(cfg['installer_url'])
+            if not os.path.isfile(conda_installer):
+                if not args.quiet:
+                    print("Downloading conda installer ...")
+                cmd = f"curl -JLO {cfg['installer_url']}".split()
+                if args.dryrun:
+                    print(f"dryrun: {' '.join(cmd)}")
+                else:
+                    proc = subprocess.Popen(cmd, shell=False)
+                    proc.communicate()
+                    assert(proc.returncode == 0)
             else:
-                proc = subprocess.Popen(cmd, shell=False)
-                proc.communicate()
-                assert(proc.returncode == 0)
+                if not args.quiet:
+                    print(f"found existing installer {conda_installer}, skipping download")
         else:
             if not args.quiet:
-                print(f"found existing installer {conda_installer}, skipping download")
-    else:
-        if not args.quiet:
-            print(f"using installer {cfg['installer_url']}")
-        assert(os.path.isfile(cfg['installer_url']))
+                print(f"using installer {cfg['installer_url']}")
+            assert(os.path.isfile(cfg['installer_url']))
 
-    if not args.dryrun:
-        write_example_environment_yml()
+        if not args.dryrun:
+            write_example_environment_yml()
+    else:
+        env_directory = get_env_directory(cfg)
+        os.makedirs(env_directory, exist_ok=True, mode=0o700)
+        print(env_directory)
 
 
 def build(args):
@@ -329,19 +355,19 @@ def build(args):
                 print(termcol.BOLD+"Starting Condainer build process ..."+termcol.ENDC)
             if not args.dryrun:
                 os.makedirs(env_directory, exist_ok=True, mode=0o700)
-            if 1 in steps:
+            if (1 in steps) and (not cfg.get('non_conda_application')):
                 if not args.quiet:
                     print(termcol.BOLD+termcol.CYAN+"1) Creating \"base\" environment ..."+termcol.ENDC)
                 create_base_environment(cfg)
-            if 2 in steps:
+            if (2 in steps) and (not cfg.get('non_conda_application')):
                 if not args.quiet:
                     print(termcol.BOLD+termcol.CYAN+f"2) Creating \"condainer\" environment from {cfg['environment_yml']} ..."+termcol.ENDC)
                 create_condainer_environment(cfg)
-            if 3 in steps:
+            if (3 in steps) and (not cfg.get('non_conda_application')):
                 if not args.quiet:
                     print(termcol.BOLD+termcol.CYAN+f"3) Adding packages from {cfg['requirements_txt']} via pip ..."+termcol.ENDC)
                 pip_condainer_environment(cfg)
-            if 4 in steps:
+            if (4 in steps) and (not cfg.get('non_conda_application')):
                 if not args.quiet:
                     print(termcol.BOLD+termcol.CYAN+"4) Cleaning environments from unnecessary files ..."+termcol.ENDC)
                 clean_environment(cfg)
@@ -349,7 +375,7 @@ def build(args):
                 if not args.quiet:
                     print(termcol.BOLD+termcol.CYAN+"5) Compressing installation directory into SquashFS image ..."+termcol.ENDC)
                 compress_environment(cfg)
-            if 6 in steps:
+            if (6 in steps) and (not cfg.get('non_conda_application')):
                 if not args.quiet:
                     print(termcol.BOLD+termcol.CYAN+"6) Creating activate and deactivate scripts ..."+termcol.ENDC)
                 if args.dryrun:
@@ -375,8 +401,10 @@ def mount(args):
     """Mount squashfs image, skip if already mounted.
     """
     cfg = get_cfg()
+    if cfg.get('multiuser_mountpoint'):
+        assert(cfg.get('non_conda_application') == True)
     if is_mounted(cfg):
-        if not args.quiet:
+        if (not args.quiet) and ():
             print("hint: condainer already mounted")
     else:
         env_directory = get_env_directory(cfg)
@@ -389,12 +417,15 @@ def mount(args):
             proc = subprocess.Popen(cmd, shell=False)
             proc.communicate()
             assert(proc.returncode == 0)
-        if not args.quiet:
+        if (not args.quiet) and (not cfg.get('non_conda_application')):
             activate = get_activate_cmd(cfg)
             print(termcol.BOLD+"Environment usage in the present shell"+termcol.ENDC)
             print( " - enable command  : "+termcol.BOLD+termcol.CYAN+f"{activate}"+termcol.ENDC)
             print( " - disable command : "+termcol.BOLD+termcol.RED+f"conda deactivate"+termcol.ENDC)
             # print(termcol.BOLD+"OK"+termcol.ENDC)
+    # print feature necessary for the dynamic mount directory feature within the activate script
+    if args.print:
+        print(get_env_directory(cfg))
 
 
 def umount(args):
@@ -420,13 +451,14 @@ def umount(args):
 
 
 def exec(args, cwd):
-    """Run command within container, set quiet mode for minimal inference with the command output.
+    """Run command within container, set quiet mode for minimal interference with the command output.
     """
     cfg = get_cfg()
-    lock=acquire_lock(get_lockfilename(cfg))
+    lock = acquire_lock(get_lockfilename(cfg))
     if lock:
         try:
             args.quiet = True
+            args.print = False
             mount_required = not is_mounted(cfg)
             if mount_required:
                 mount(args)

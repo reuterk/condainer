@@ -21,14 +21,18 @@ def get_args():
 
     subparsers   = parser.add_subparsers(dest='subcommand', required=True)
 
-    subparsers.add_parser('init', help='initialize directory with config files')
+    parser_init = subparsers.add_parser('init', help='initialize directory with config files')
+    parser_init.add_argument('-n', '--non-conda-application', action='store_true', help='use condainer to store a non-conda application (advanced use case)')
+
     parser_build = subparsers.add_parser('build', help='build containerized conda environment')
     parser_build.add_argument('-s', '--steps', type=str, default="1,2,3,4,5,6,7", help='debug option to select individual build steps, default is all steps: 1,2,3,4,5,6,7')
 
     parser_exec = subparsers.add_parser('exec', help='execute command within containerized conda environment')
     parser_exec.add_argument('command', type=str, nargs='+', help='command line of the containerized command')
 
-    subparsers.add_parser('mount', help='mount containerized conda environment')
+    parser_mount = subparsers.add_parser('mount', help='mount containerized conda environment')
+    parser_mount.add_argument('-p', '--print', action='store_true', help='print the mount directory to stdout')
+
     subparsers.add_parser('umount', help='unmount ("eject") containerized conda environment')
     subparsers.add_parser('prereq', help='check if the necessary tools are installed')
     subparsers.add_parser('status', help='print status information about the condainer')
