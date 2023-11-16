@@ -10,6 +10,7 @@ import uuid
 import fcntl
 import shutil
 import socket
+import getpass
 import subprocess
 
 
@@ -25,6 +26,8 @@ class termcol:
 
 
 def get_example_environment_yml():
+    """Return an example environment.yml file
+    """
     raw = \
 """#
 name: basic
@@ -64,7 +67,7 @@ def write_cfg(cfg):
 
 
 def get_cfg():
-    """Read config dictionary from YAML.
+    """Read the config dictionary from YAML, and return.
     """
     with open('condainer.yml', 'r') as fp:
         cfg = yaml.safe_load(fp)
@@ -72,16 +75,22 @@ def get_cfg():
 
 
 def get_env_directory(cfg):
+    """Determine and return the base directory of the environment (which is identical to the squashfuse mount point).
+    """
     if cfg.get('multiuser_mountpoint'):
-        suffix = '-' + os.getlogin()
-        if os.environ.get('SLURM_JOB_ID'):
-            suffix = suffix + '-' + os.environ.get('SLURM_JOB_ID')
+        suffix = '-' + getpass.getuser()
+        # we cannot add the slurm job id because this would break compiled extensions linking back to libraries provided by condainer
+        # if os.environ.get('SLURM_JOB_ID'):
+        #     suffix = suffix + '-' + os.environ.get('SLURM_JOB_ID')
     else:
         suffix = ''
     return os.path.join(cfg['mount_base_directory'], "condainer-"+cfg['uuid']+suffix)
 
 
 def get_installer_path(cfg):
+    """Return the path to the Miniconda/Miniforge installer, either the full path including the filename,
+    or the filename alone, assuming that it has been downloaded to the Condainer project directory.
+    """
     if cfg['installer_url'].startswith('http'):
         return os.path.basename(cfg['installer_url'])
     else:
@@ -109,12 +118,16 @@ def get_image_filename(cfg):
 
 
 def get_activate_cmd(cfg):
+    """Return the shell command necessary to `activate` the condainer environment.
+    """
     env_directory = get_env_directory(cfg)
     activate = os.path.join(os.path.join(env_directory, 'bin'), 'activate')
     return f"source {activate} condainer"
 
 
 def write_activate_script(cfg):
+    """Create the `activate` script (mounting the condainer and activating the condainer env).
+    """
     with open("activate", 'w') as fp:
         fp.write("# usage: source activate\n")
         fp.write("# - must be sourced from the condainer project directory\n")
@@ -122,13 +135,12 @@ def write_activate_script(cfg):
         fp.write("cnd --quiet mount\n")
         cmd = get_activate_cmd(cfg)
         fp.write(f"{cmd}\n")
-        # rewrite, to have CND_ENV_DIR dynamic to support multiuser_mount_point
-        # fp.write("CND_ENV_DIR=`cnd --quiet mount --print`\n")
-        # fp.write("source ${CND_ENV_DIR}/bin/activate condainer\n")
     os.chmod("activate", 0o755)
 
 
 def write_deactivate_script(cfg):
+    """Create the `deactivate` script (deactivating the condainer env and hinting at unmounting the condainer).
+    """
     with open("deactivate", 'w') as fp:
         fp.write("# usage: source deactivate\n")
         fp.write("# - only bourne shells are supported, such as bash or zsh\n")
@@ -238,12 +250,25 @@ def clean_environment(cfg):
         assert(proc.returncode == 0)
 
 
+def get_squashfs_num_threads():
+    """Determine and return the number of threads to be used for `mksquashfs`
+    """
+    # on large shared login nodes, we need to limit the number of threads, 16 seems reasonable as of now
+    n_threads_limit = 16
+    # get the number of vcores that is actually available to the process
+    n_cores = len(os.sched_getaffinity(0))
+    if n_cores > n_threads_limit:
+        n_cores = n_threads_limit
+    return n_cores
+
+
 def compress_environment(cfg):
     """Create squashfs image from base environment.
     """
     env_directory = get_env_directory(cfg)
     squashfs_image = get_image_filename(cfg)
-    cmd = f"mksquashfs {env_directory}/ {squashfs_image} -noappend".split()
+    num_threads = get_squashfs_num_threads()
+    cmd = f"mksquashfs {env_directory}/ {squashfs_image} -noappend -processors {num_threads}".split()
     if cfg.get("dryrun"):
         print(f"dryrun: {' '.join(cmd)}")
     else:
