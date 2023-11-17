@@ -10,7 +10,6 @@ import uuid
 import fcntl
 import shutil
 import socket
-import getpass
 import subprocess
 
 
@@ -78,7 +77,7 @@ def get_env_directory(cfg):
     """Determine and return the base directory of the environment (which is identical to the squashfuse mount point).
     """
     if cfg.get('multiuser_mountpoint'):
-        suffix = '-' + getpass.getuser()
+        suffix = '-' + str(os.getuid())
         # we cannot add the slurm job id because this would break compiled extensions linking back to libraries provided by condainer
         # if os.environ.get('SLURM_JOB_ID'):
         #     suffix = suffix + '-' + os.environ.get('SLURM_JOB_ID')
