@@ -6,7 +6,7 @@ long_description = (base_dir / "README.md").read_text()
 
 setup(
     name='condainer',
-    version='0.1.7',
+    version='0.1.8',
     description='Build, manage, and run compressed squashfs images of Conda environments transparently on HPC or elsewhere.',
     long_description = long_description,
     author='Klaus Reuter',

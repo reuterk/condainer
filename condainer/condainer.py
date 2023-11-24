@@ -87,8 +87,8 @@ def get_env_directory(cfg):
 
 
 def get_installer_path(cfg):
-    """Return the path to the Miniconda/Miniforge installer, either the full path including the filename,
-    or the filename alone, assuming that it has been downloaded to the Condainer project directory.
+    """Return the path to the Miniforge installer, either the full path including the filename,
+    or the filename alone, assuming that it has been downloaded to the Condainer project directory already.
     """
     if cfg['installer_url'].startswith('http'):
         return os.path.basename(cfg['installer_url'])
@@ -261,10 +261,20 @@ def get_squashfs_num_threads():
     return n_cores
 
 
-def compress_environment(cfg):
+def compress_environment(cfg, read_only_flags=True):
     """Create squashfs image from base environment.
     """
     env_directory = get_env_directory(cfg)
+    # explicitly set read-only flags before compressing
+    if read_only_flags:
+        cmd = f"chmod -R a-w {env_directory}".split()
+        if cfg.get("dryrun"):
+            print(f"dryrun: {' '.join(cmd)}")
+        else:
+            proc = subprocess.Popen(cmd, shell=False)
+            proc.communicate()
+            # assert(proc.returncode == 0)
+    # compress files into image
     squashfs_image = get_image_filename(cfg)
     num_threads = get_squashfs_num_threads()
     cmd = f"mksquashfs {env_directory}/ {squashfs_image} -noappend -processors {num_threads}".split()
@@ -274,6 +284,15 @@ def compress_environment(cfg):
         proc = subprocess.Popen(cmd, shell=False)
         proc.communicate()
         assert(proc.returncode == 0)
+    # restore permissions, allowing to delete the staging directory later
+    if read_only_flags:
+        cmd = f"chmod -R u+w {env_directory}".split()
+        if cfg.get("dryrun"):
+            print(f"dryrun: {' '.join(cmd)}")
+        else:
+            proc = subprocess.Popen(cmd, shell=False)
+            proc.communicate()
+            # assert(proc.returncode == 0)
 
 
 def run_cmd(args, cwd):
@@ -315,8 +334,8 @@ def init(args):
     cfg["requirements_txt"] = 'requirements.txt'
     cfg['installer_url'] = installer_url
     cfg['conda_exe'] = 'mamba'
-    # --- advanced: non-conda application, e.g. Matlab, default False ---
-    cfg['non_conda_application'] = args.non_conda_application
+    # Advanced: non-conda application, e.g. Matlab, default False ---
+    # cfg['non_conda_application'] = args.non_conda_application
     # The following flag can be added later to the config file, e.g. when building and compressing via the OBS
     # For some applications, this would work (Matlab), for others not (Conda):
     #cfg['multiuser_mountpoint'] = False
