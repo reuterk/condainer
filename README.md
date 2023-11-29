@@ -5,7 +5,10 @@
 ## TL;DR - Quick start guide
 
 Condainer puts Conda environments into compressed squashfs images which makes
-the use of such environments portable and more efficient, in particular on HPC systems.
+the use of such environments portable and more efficient, in particular on HPC
+systems.  These environments (respectively images) are standalone and completely
+avoid the integration of a specific `conda` executable into the user's `.bashrc`
+file which often causes issues, for example on HPC systems.
 
 ### Build a compressed environment
 
@@ -13,8 +16,10 @@ Starting in an empty directory, use the following commands once to build a compr
 
 ```bash
 cnd init
+ls
 # edit the provided example 'environment.yml' file, or copy your own file here, before running
 cnd build
+ls
 ```
 
 ### Activate a compressed environment
@@ -33,7 +38,7 @@ In case you do not want to activate the environment, you can run individual exec
 cnd exec -- python3
 ```
 
-Please see below for more detailed explanations and more options.
+Please see the sections below for more detailed explanations and more options.
 
 ## Background
 
@@ -66,9 +71,9 @@ Condainer images are standalone and portable, i.e., they can be
 copied between different systems, improving reproducibility
 and reusability of proven working software environments.
 
-Technically, Condainer uses the Python basis from `Miniforge`
+Technically, Condainer uses the Python basis from Miniforge
 (which is a free alternative similar to Miniconda) and installs the
-software stack defined by the user via an `environment.yml` into a nested environment.
+software stack defined by the user via an `environment.yml` into an environment.
 Package resolution and installation are extremely fast thanks to the
 `mamba` package manager (an optimized replacement for `conda`).
 As a second step, Condainer creates a compressed squashfs image file
@@ -85,11 +90,11 @@ in the strict terminology of Docker, Apptainer, etc. With Condainer,
 there is no encapsulation, isolation, or similar, rather Condainer
 is an easy-to-use wrapper around the building, compressing,
 mounting, and unmounting of conda environments and their compressed
-image files.
+image files directly on the host system.
 
 ## Installation
 
-Condainer can be installed using pip, e.g. using
+After cloning the repository, Condainer can be installed using pip, e.g. using
 
 `pip install --user .`
 
@@ -97,8 +102,9 @@ which would place the executable `cnd` into `~/.local/bin`.
 
 ## Usage
 
-The Condainer executable is `cnd` and is controlled via subcommands and flags. See `cnd --help` for full details.
-The following subcommands are available with Condainer:
+The Condainer executable is `cnd` and is controlled via subcommands and flags.
+See `cnd --help` for full details.
+The following subcommands are available for `cnd`:
 
 ### Initialize a project using `cnd init`
 
@@ -176,6 +182,11 @@ the Miniforge installer, in case it is not available locally.
 The environment variable `CONDAINER_INSTALLER` allows to specify the full file
 path to a Miniforge installer, e.g. to provide it centrally on a cluster.
 No installer is downloaded in case that variable is defined.
+
+## Features and Limitations
+
+* Any valid `environment.yml` should work, there is no lock-in effect when using Condainer, and you can use the same `environment.yml` with plain Conda elsewhere.
+* Condainer environments are read-only and immutable. In case you need to add packages, rebuild the image. (You can toggle between multiple existing squashfs images by editing the UUID string in `condainer.yml`.)
 
 ## Contact
 
