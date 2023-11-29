@@ -89,8 +89,8 @@ Please note that the squashfs images used by Condainer are not "containers"
 in the strict terminology of Docker, Apptainer, etc. With Condainer,
 there is no encapsulation, isolation, or similar, rather Condainer
 is an easy-to-use wrapper around the building, compressing,
-mounting, and unmounting of conda environments and their compressed
-image files directly on the host system.
+mounting, and unmounting of conda environments on top of compressed
+image files.
 
 ## Installation
 
