@@ -1,5 +1,7 @@
 # Condainer - Conda environments for HPC systems
 
+![avatar](./fig/condainer_small.jpg)
+
 ## TL;DR - Quick start guide
 
 Condainer puts Conda environments into compressed squashfs images which makes
