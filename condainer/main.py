@@ -1,10 +1,12 @@
-"""Condainer
-Argument handling and calling of the functions implemented in condainer.py
+"""Condainer - main.py
+
+Argument handling and calling of the entry points implemented in condainer.py
 """
 
 import os
 import sys
 import argparse
+from . import version
 from . import condainer
 
 def get_args():
@@ -13,7 +15,7 @@ def get_args():
     parser = argparse.ArgumentParser(
         prog=sys.argv[0],
         description='Create and manage conda environments based on compressed squashfs images.',
-        epilog='More information at https://gitlab.mpcdf.mpg.de/khr/condainer'
+        epilog='More information at https://gitlab.mpcdf.mpg.de/mpcdf/condainer'
     )
     parser.add_argument('-q', '--quiet', action='store_true', help='be quiet, do not write to stdout unless an error occurs')
     parser.add_argument('-d', '--directory', help='condainer project directory, the default is the current working directory')
@@ -37,6 +39,8 @@ def get_args():
     subparsers.add_parser('prereq', help='check if the necessary tools are installed')
     subparsers.add_parser('status', help='print status information about the condainer')
     # subparsers.add_parser('test', help=argparse.SUPPRESS)
+
+    subparsers.add_parser('version', help='print version information and exit')
 
     args = parser.parse_args()
     return args
@@ -65,3 +69,5 @@ def cli():
         condainer.test(args)
     elif args.subcommand == 'status':
         condainer.status(args)
+    elif args.subcommand == 'version':
+        print(version.get_descriptive_version_string())

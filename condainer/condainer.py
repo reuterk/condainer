@@ -1,6 +1,8 @@
-"""Condainer
-This file implements the functions to be called from main.py.
+"""Condainer - condainer.py
+
+Entry point functions, and factorized building blocks implementing all functionality.
 """
+
 
 import os
 import sys
