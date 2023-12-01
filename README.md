@@ -47,52 +47,51 @@ See the sections below for more detailed explanations and more options.
 
 ### Often a Problem: Conda environments on HPC file systems
 
-The Conda package manager and the related workflows have become an
-adopted standard when it comes to distributing scientific software
-for easy installation by end users. It not only handles native
-Python packages but also manages dependencies in the form of
-binary blobs, such as third-party libraries that are provided as
-shared objects. Using `conda`, complex software environments can
-be defined by means of simple descriptive `environment.yml` files.
+The Conda package manager and the related workflows have become an adopted
+standard when it comes to distributing scientific software for easy installation
+by end users. Using `conda`, complex software environments can be defined by
+means of simple descriptive `environment.yml` files. On MPCDF systems, users
+may use Conda environments, but without support from MPCDF for the software therein.
 
-Once installed, large environments can easily amount to several 100k individual
-(small) files. On a local desktop file system, this is typically not an issue.
-However, in particular on the large shared parallel file systems of HPC systems,
-the vast amount of small files can cause issues as these filesystems are
-optimized for different scenarios. Inode exhaustion and heavy load due to
-(millions of) file opens, short reads, and closes happening during the startup
-phase of (parallel) Python jobs from the different users on the system are only
-two examples.
+Once installed, large Conda environments can easily amount to several 100k
+individual (small) files. On a local file system of a laptop or PC this is
+typically not an issue.  However, in particular on the large shared parallel
+file systems of HPC systems the vast amount of small files can cause issues as
+these filesystems are optimized for different scenarios. Inode exhaustion and
+heavy load due to (millions of) file opens, short reads, and closes happening
+during the startup phase of Python jobs from the different users on the system
+are only two examples.
 
 ### Solution: Move Conda environments into compressed image files
 
-Condainer adresses these issues by moving Conda environments into
-compressed squashfs images, reducing the number of files
-stored on the host file system directly by orders of magnitude.
-Condainer images are standalone and portable, i.e., they can be
-copied between different systems, improving reproducibility
-and reusability of proven-to-work software environments.
+Condainer adresses these issues by moving Conda
+environments into compressed squashfs images, reducing the number of files
+stored directly on the host file system by orders of magnitude.  Condainer
+images are standalone and portable: They can be copied between different
+systems, improving reproducibility and reusability of proven-to-work software
+environments.  In particular, they sidestep the integration of a specific
+`conda` executable into the user's `.bashrc` file, which often causes issues and
+is orthogonal to the module-based software environments provided on HPC systems.
 
-Technically, Condainer uses the Python basis from Miniforge
-(which is a free alternative similar to Miniconda) and then installs the
-software stack defined by the user based on the usual `environment.yml` file.
-Package resolution and installation are extremely fast thanks to the
-`mamba` package manager (an optimized replacement for `conda`).
-As a second step, Condainer creates a compressed squashfs image file
-from that installation, before it deletes the latter to save disk
-space. The compressed image is then mounted at the very same
-directory, providing the complete Conda environment to
-the user who can `activate` or `deactivate` it, just as usual. Moreover,
-Condainer provides a wrapper to run executables from the
-Conda environment directly and transparently, without the need to
-explicitly mount and unmount the image.
+Technically, Condainer uses a Python basis from Miniforge (which is a free
+alternative similar to Miniconda) and then installs the user-defined software
+stack from the usual `environment.yml` file.  Package resolution and
+installation are extremely fast thanks to the `mamba` package manager (an
+optimized replacement for `conda`).  As a second step, Condainer creates a
+compressed squashfs image file from the staging installation, before it deletes
+the latter to save disk space. Subsequently, the compressed image is mounted (using
+`squashfuse`) at the very same directory, providing the full Conda environment
+to the user who can `activate` or `deactivate` it, just as usual. Moreover,
+Condainer provides functionality to run executables from the Conda environment
+directly and transparently, without the need to explicitly mount and unmount the
+image.
 
-Please note that the squashfs images used by Condainer are not "containers"
-in the strict terminology of Docker, Apptainer, etc. With Condainer,
-there is no encapsulation, isolation, or similar, rather Condainer
-is an easy-to-use wrapper around the building, compressing,
-mounting, and unmounting of Conda environments on top of compressed
-image files.
+Please note that the squashfs images used by Condainer are not "containers" in
+the strict terminology of Docker, Apptainer, or alike. With Condainer, there is no
+process isolation or similar, rather Condainer is an easy-to-use and highly
+efficient wrapper around the building, compressing, mounting, and unmounting of
+Conda environments on top of compressed image files.
+In the following, the basic usage is outlined.
 
 ## Installation
 
@@ -199,6 +198,8 @@ No installer is downloaded in case that variable is defined.
 * Condainer environments are read-only and immutable. In case you need to add packages, rebuild the image.
 * Within the same project, when experimenting, you can toggle between multiple existing squashfs images by editing the UUID string in `condainer.yml`.
 
-## Contact
+## Source Code and Contact
 
-Copyright © 2023 Klaus Reuter <klaus.reuter@mpcdf.mpg.de>, Max Planck Computing and Data Facility
+Condainer is available under the MIT license at <https://gitlab.mpcdf.mpg.de/mpcdf/condainer> or <https://github.com/reuterk/condainer>.
+
+Copyright © 2023- Klaus Reuter <klaus.reuter@mpcdf.mpg.de>, Max Planck Computing and Data Facility
