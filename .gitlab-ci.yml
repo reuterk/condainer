@@ -1,10 +1,7 @@
 basic:
-  image: gitlab-registry.mpcdf.mpg.de/mpcdf/ci-module-image/system:2023
+  image: continuumio/miniconda3:latest
   tags:
     - cloud
-    - 1core
-  before_script:
-    - module load anaconda/3/2023.03
   script:
     - pip3 install --user -e .
     - mkdir test
