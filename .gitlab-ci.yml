@@ -1,5 +1,5 @@
 basic:
-  image: gitlab-registry.mpcdf.mpg.de/mpcdf/module-image
+  image: gitlab-registry.mpcdf.mpg.de/mpcdf/ci-module-image/system:2023
   tags:
     - cloud
     - 1core
