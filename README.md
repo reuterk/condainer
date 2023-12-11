@@ -1,7 +1,5 @@
 # Condainer - Compressed Conda environments for HPC systems
 
-![avatar](./fig/condainer_small.jpg)
-
 ## TL;DR - Quick start guide
 
 Condainer puts Conda environments into compressed (squashfs) images which makes
@@ -32,6 +30,9 @@ shell session, sililar to plain Conda or to a Python virtual environment:
 ```bash
 source activate
 ```
+
+Please note that `source activate` will only work with bourne shells (e.g.
+`bash` or `zsh`), not with the older C shells and korn shells.
 
 ### Alternatively, run an executable from a compressed environment directly
 
