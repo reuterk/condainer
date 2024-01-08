@@ -62,7 +62,7 @@ def write_cfg(cfg):
         fp.write("#\n")
         fp.write("# - initially created by `condainer init`\n")
         fp.write("# - can be edited by hand, if necessary\n")
-        fp.write("# - more information at https://gitlab.mpcdf.mpg.de/khr/condainer\n")
+        fp.write("# - more information at https://gitlab.mpcdf.mpg.de/mpcdf/condainer\n")
         fp.write("#\n")
         fp.write(yaml.safe_dump(cfg, sort_keys=False))
 
