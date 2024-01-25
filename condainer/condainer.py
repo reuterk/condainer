@@ -192,6 +192,11 @@ def create_base_environment(cfg):
         proc = subprocess.Popen(cmd, shell=False, env=env)
         proc.communicate()
         assert(proc.returncode == 0)
+        condarc = {}
+        condarc["envs_dirs"] = [os.path.join(env_directory, 'envs'),]
+        condarc_yml = os.path.join(env_directory, '.condarc')
+        with open(condarc_yml, 'w') as fp:
+            fp.write(yaml.safe_dump(condarc))
 
 
 def create_condainer_environment(cfg):
