@@ -221,6 +221,7 @@ def create_condainer_environment(cfg):
         del env["PYTHONPATH"]
     if cfg.get("dryrun"):
         print(f"dryrun: {' '.join(cmd)}")
+        write_cfg(cfg)
     else:
         proc = subprocess.Popen(cmd, shell=False, env=env)
         proc.communicate()
