@@ -215,6 +215,7 @@ def create_condainer_environment(cfg):
     environment_cfg = get_cfg(environment_yml)
     user_env_name = environment_cfg.get("name", "env") + "@condainer"
     cmd = f"{exe} env create --file {environment_yml} --name {user_env_name}".split()
+    cfg["user_env_name"] = user_env_name
     env = copy.deepcopy(os.environ)
     if "PYTHONPATH" in env:
         del env["PYTHONPATH"]
