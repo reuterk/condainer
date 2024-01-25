@@ -15,6 +15,7 @@ basic_dryruns:
     - ~/.local/bin/cnd --dryrun mount
     - ~/.local/bin/cnd --dryrun umount
     - ~/.local/bin/cnd --dryrun exec -- python3
+    - ~/.local/bin/cnd --dryrun cache
     - popd
   only:
     - master
