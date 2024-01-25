@@ -2,8 +2,15 @@ basic_dryruns:
   image: continuumio/miniconda3:latest
   tags:
     - cloud
-  script:
+  cache:
+    key: "pip_cache"
+    paths:
+      - .cache/pip
+  variables:
+    PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  before_script:
     - pip3 install --user -e .
+  script:
     - mkdir test
     - pushd test
     - ~/.local/bin/cnd --help
