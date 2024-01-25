@@ -54,10 +54,10 @@ def write_example_environment_yml():
         fp.write(environment_yml)
 
 
-def write_cfg(cfg):
+def write_cfg(cfg, cfg_yml='condainer.yml'):
     """Write config dictionary to YAML.
     """
-    with open('condainer.yml', 'w') as fp:
+    with open(cfg_yml, 'w') as fp:
         fp.write("# Condainer project configuration file\n")
         fp.write("#\n")
         fp.write("# - initially created by `condainer init`\n")
@@ -67,15 +67,15 @@ def write_cfg(cfg):
         fp.write(yaml.safe_dump(cfg, sort_keys=False))
 
 
-def get_cfg():
-    """Read the config dictionary from YAML, and return.
+def get_cfg(cfg_yml='condainer.yml'):
+    """Read a config dictionary from YAML, and return.
     """
-    with open('condainer.yml', 'r') as fp:
+    with open(cfg_yml, 'r') as fp:
         cfg = yaml.safe_load(fp)
     return cfg
 
 
-def get_env_directory(cfg):
+def get_base_env_directory(cfg):
     """Determine and return the base directory of the environment (which is identical to the squashfuse mount point).
     """
     if cfg.get('multiuser_mountpoint'):
@@ -86,6 +86,12 @@ def get_env_directory(cfg):
     else:
         suffix = ''
     return os.path.join(cfg['mount_base_directory'], "condainer-"+cfg['uuid']+suffix)
+
+
+def get_user_env_directory(cfg):
+    """Determine and return the directory of the nested conda environment.
+    """
+    return os.path.join(get_base_env_directory(cfg), "envs", cfg["user_env_name"])
 
 
 def get_installer_path(cfg):
@@ -101,7 +107,7 @@ def get_installer_path(cfg):
 def is_mounted(cfg):
     """Return True if the container is mounted at its respective mountpoint, False otherwise.
     """
-    env_directory = get_env_directory(cfg)
+    env_directory = get_base_env_directory(cfg)
     q = False
     with open('/proc/mounts', 'r') as fp:
         for raw in fp:
@@ -121,9 +127,10 @@ def get_image_filename(cfg):
 def get_activate_cmd(cfg):
     """Return the shell command necessary to `activate` the condainer environment.
     """
-    env_directory = get_env_directory(cfg)
+    env_directory = get_base_env_directory(cfg)
     activate = os.path.join(os.path.join(env_directory, 'bin'), 'activate')
-    return f"source {activate} condainer"
+    user_env_name = cfg["user_env_name"]
+    return f"source {activate} {user_env_name}"
 
 
 def write_activate_script(cfg):
@@ -154,7 +161,7 @@ def write_deactivate_script(cfg):
 def get_lockfilename(cfg):
     """Return lock file name unique to the present project and host name.
     """
-    return get_env_directory(cfg)+"-"+socket.gethostname()+".mutex"
+    return get_base_env_directory(cfg)+"-"+socket.gethostname()+".mutex"
 
 
 def acquire_lock(lock_file):
@@ -181,7 +188,7 @@ def create_base_environment(cfg):
     """Create base environment.
     """
     conda_installer = get_installer_path(cfg)
-    env_directory = get_env_directory(cfg)
+    env_directory = get_base_env_directory(cfg)
     cmd = f"/bin/bash {conda_installer} -b -f -p {env_directory}".split()
     env = copy.deepcopy(os.environ)
     if "PYTHONPATH" in env:
@@ -202,10 +209,12 @@ def create_base_environment(cfg):
 def create_condainer_environment(cfg):
     """Install user-defined software stack (environment.yml) into 'condainer' environment.
     """
-    env_directory = get_env_directory(cfg)
+    env_directory = get_base_env_directory(cfg)
     exe = os.path.join(os.path.join(env_directory, 'bin'), cfg['conda_exe'])
     environment_yml = cfg["environment_yml"]
-    cmd = f"{exe} env create --file {environment_yml} --name condainer".split()
+    environment_cfg = get_cfg(environment_yml)
+    user_env_name = environment_cfg.get("name", "env") + "@condainer"
+    cmd = f"{exe} env create --file {environment_yml} --name {user_env_name}".split()
     env = copy.deepcopy(os.environ)
     if "PYTHONPATH" in env:
         del env["PYTHONPATH"]
@@ -215,13 +224,14 @@ def create_condainer_environment(cfg):
         proc = subprocess.Popen(cmd, shell=False, env=env)
         proc.communicate()
         assert(proc.returncode == 0)
+        cfg["user_env_name"] = user_env_name
+        write_cfg(cfg)
 
 
 def pip_condainer_environment(cfg):
     """Install user-defined software stack (requirements.txt) into 'condainer' environment.
     """
-    env_directory = get_env_directory(cfg)
-    exe = os.path.join(os.path.join(env_directory, 'bin'), 'pip3')
+    exe = os.path.join(get_user_env_directory(cfg), 'bin', 'pip3')
     requirements_txt = cfg["requirements_txt"]
     if os.path.isfile(requirements_txt):
         cmd = f"{exe} install --requirement {requirements_txt} --no-cache-dir".split()
@@ -242,7 +252,7 @@ def pip_condainer_environment(cfg):
 def clean_environment(cfg):
     """Delete pkg files and other unnecessary files from base environment.
     """
-    env_directory = get_env_directory(cfg)
+    env_directory = get_base_env_directory(cfg)
     exe = os.path.join(os.path.join(env_directory, 'bin'), cfg['conda_exe'])
     cmd = f"{exe} clean --all --yes".split()
     env = copy.deepcopy(os.environ)
@@ -271,7 +281,7 @@ def get_squashfs_num_threads():
 def compress_environment(cfg, read_only_flags=True):
     """Create squashfs image from base environment.
     """
-    env_directory = get_env_directory(cfg)
+    env_directory = get_base_env_directory(cfg)
     # explicitly set read-only flags before compressing
     if read_only_flags:
         cmd = f"chmod -R a-w {env_directory}".split()
@@ -306,11 +316,10 @@ def run_cmd(args, cwd):
     """Run command in a sub-process, where PATH is prepended with the 'bin' directory of the 'condainer' environment in the container.
     """
     cfg = get_cfg()
-    env_directory = get_env_directory(cfg)
     if cfg.get('non_conda_application'):
-        bin_directory = os.path.join(env_directory, 'bin')
+        bin_directory = os.path.join(get_base_env_directory(cfg), 'bin')
     else:
-        bin_directory = os.path.join(env_directory, 'envs', 'condainer', 'bin')
+        bin_directory = os.path.join(get_user_env_directory(cfg), 'bin')
     env = copy.deepcopy(os.environ)
     env['PATH'] = bin_directory + ':' + env['PATH']
     if args.dryrun:
@@ -379,7 +388,7 @@ def init(args):
         if not args.dryrun:
             write_example_environment_yml()
     else:
-        env_directory = get_env_directory(cfg)
+        env_directory = get_base_env_directory(cfg)
         os.makedirs(env_directory, exist_ok=True, mode=0o700)
         print(env_directory)
 
@@ -391,7 +400,7 @@ def build(args):
     cfg["quiet"] = args.quiet
     cfg["dryrun"] = args.dryrun
     squashfs_image = get_image_filename(cfg)
-    env_directory = get_env_directory(cfg)
+    env_directory = get_base_env_directory(cfg)
     if os.path.isfile(squashfs_image):
         print(f"STOP. Found existing image file {squashfs_image}, please remove this first.")
         sys.exit(1)
@@ -457,7 +466,7 @@ def mount(args):
         if (not args.quiet) and ():
             print("hint: condainer already mounted")
     else:
-        env_directory = get_env_directory(cfg)
+        env_directory = get_base_env_directory(cfg)
         os.makedirs(env_directory, exist_ok=True, mode=0o700)
         squashfs_image = get_image_filename(cfg)
         cmd = f"squashfuse {squashfs_image} {env_directory}".split()
@@ -475,7 +484,7 @@ def mount(args):
             # print(termcol.BOLD+"OK"+termcol.ENDC)
     # print feature necessary for the dynamic mount directory feature within the activate script
     if args.print:
-        print(get_env_directory(cfg))
+        print(get_base_env_directory(cfg))
 
 
 def umount(args):
@@ -483,7 +492,7 @@ def umount(args):
     """
     cfg = get_cfg()
     if is_mounted(cfg):
-        env_directory = get_env_directory(cfg)
+        env_directory = get_base_env_directory(cfg)
         cmd = f"fusermount -u {env_directory}".split()
         if args.dryrun:
             print(f"dryrun: {' '.join(cmd)}")
@@ -537,7 +546,7 @@ def status(args):
     print(termcol.BOLD+"Condainer status"+termcol.ENDC)
     print(f" - project directory : {os.getcwd()}")
     print(f" - squashfs image    : {get_image_filename(cfg)}")
-    print(f" - fuse mount point  : {get_env_directory(cfg)}")
+    print(f" - fuse mount point  : {get_base_env_directory(cfg)}")
     print(f" - image mounted     : {is_mounted(cfg)}")
 
 
