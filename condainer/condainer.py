@@ -552,6 +552,20 @@ def status(args):
     print(f" - image mounted     : {is_mounted(cfg)}")
 
 
+def cache(args):
+    """Read squashfs image file once to motivate the OS to cache it.
+    """
+    cfg = get_cfg()
+    squashfs_image = get_image_filename(cfg)
+    cmd = f"dd if={squashfs_image} of=/dev/null bs=1M".split()
+    if args.dryrun:
+        print(f"dryrun: {' '.join(cmd)}")
+    else:
+        proc = subprocess.Popen(cmd, shell=False)
+        proc.communicate()
+        assert(proc.returncode == 0)
+
+
 def test(args):
     """Dummy function for quick testing
     """

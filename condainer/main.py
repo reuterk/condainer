@@ -38,6 +38,7 @@ def get_args():
     subparsers.add_parser('umount', help='unmount ("eject") containerized conda environment')
     subparsers.add_parser('prereq', help='check if the necessary tools are installed')
     subparsers.add_parser('status', help='print status information about the condainer')
+    subparsers.add_parser('cache', help='put condainer image into the page cache of the OS')
     # subparsers.add_parser('test', help=argparse.SUPPRESS)
 
     subparsers.add_parser('version', help='print version information and exit')
@@ -69,5 +70,7 @@ def cli():
         condainer.test(args)
     elif args.subcommand == 'status':
         condainer.status(args)
+    elif args.subcommand == 'cache':
+        condainer.cache(args)
     elif args.subcommand == 'version':
         print(version.get_descriptive_version_string())

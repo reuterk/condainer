@@ -199,6 +199,36 @@ No installer is downloaded in case that variable is defined.
 * Condainer environments are read-only and immutable. In case you need to add packages, rebuild the image.
 * Within the same project, when experimenting, you can toggle between multiple existing squashfs images by editing the UUID string in `condainer.yml`.
 
+## `cnd` command line flags
+
+```text
+$ cnd --help
+usage: cnd [-h] [-q] [-d DIRECTORY] [-y] {init,build,exec,mount,umount,prereq,status,cache,version} ...
+
+Create and manage conda environments based on compressed squashfs images.
+
+positional arguments:
+  {init,build,exec,mount,umount,prereq,status,cache,version}
+    init                initialize directory with config files
+    build               build containerized conda environment
+    exec                execute command within containerized conda environment
+    mount               mount containerized conda environment
+    umount              unmount ("eject") containerized conda environment
+    prereq              check if the necessary tools are installed
+    status              print status information about the condainer
+    cache               put condainer image into the page cache of the OS
+    version             print version information and exit
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -q, --quiet           be quiet, do not write to stdout unless an error occurs
+  -d DIRECTORY, --directory DIRECTORY
+                        condainer project directory, the default is the current working directory
+  -y, --dryrun          dry run, do not actually do any operations, instead print information on what would be done
+
+More information at https://gitlab.mpcdf.mpg.de/mpcdf/condainer
+```
+
 ## Source Code and Contact
 
 Condainer is available under the MIT license at <https://gitlab.mpcdf.mpg.de/mpcdf/condainer> or <https://github.com/reuterk/condainer>.
