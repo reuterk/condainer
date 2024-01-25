@@ -1,4 +1,4 @@
-basic:
+basic_dryruns:
   image: continuumio/miniconda3:latest
   tags:
     - cloud
