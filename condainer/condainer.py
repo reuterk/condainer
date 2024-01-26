@@ -184,7 +184,7 @@ def release_lock(lock_fh):
         lock_fh.close()
 
 
-def create_base_environment(cfg):
+def create_base_environment(cfg, args):
     """Create base environment.
     """
     conda_installer = get_installer_path(cfg)
@@ -193,7 +193,7 @@ def create_base_environment(cfg):
     env = copy.deepcopy(os.environ)
     if "PYTHONPATH" in env:
         del env["PYTHONPATH"]
-    if cfg.get("dryrun"):
+    if args.dryrun:
         print(f"dryrun: {' '.join(cmd)}")
     else:
         proc = subprocess.Popen(cmd, shell=False, env=env)
@@ -206,7 +206,7 @@ def create_base_environment(cfg):
             fp.write(yaml.safe_dump(condarc))
 
 
-def create_condainer_environment(cfg):
+def create_condainer_environment(cfg, args):
     """Install user-defined software stack (environment.yml) into 'condainer' environment.
     """
     env_directory = get_base_env_directory(cfg)
@@ -219,7 +219,7 @@ def create_condainer_environment(cfg):
     env = copy.deepcopy(os.environ)
     if "PYTHONPATH" in env:
         del env["PYTHONPATH"]
-    if cfg.get("dryrun"):
+    if args.dryrun:
         print(f"dryrun: {' '.join(cmd)}")
         write_cfg(cfg)
     else:
@@ -230,7 +230,7 @@ def create_condainer_environment(cfg):
         write_cfg(cfg)
 
 
-def pip_condainer_environment(cfg):
+def pip_condainer_environment(cfg, args):
     """Install user-defined software stack (requirements.txt) into 'condainer' environment.
     """
     exe = os.path.join(get_user_env_directory(cfg), 'bin', 'pip3')
@@ -240,18 +240,18 @@ def pip_condainer_environment(cfg):
         env = copy.deepcopy(os.environ)
         if "PYTHONPATH" in env:
             del env["PYTHONPATH"]
-        if cfg.get("dryrun"):
+        if args.dryrun:
             print(f"dryrun: {' '.join(cmd)}")
         else:
             proc = subprocess.Popen(cmd, shell=False, env=env)
             proc.communicate()
             assert(proc.returncode == 0)
     else:
-        if not cfg.get("quiet"):
+        if not args.quiet:
             print(f"{requirements_txt} not found, skipping pip")
 
 
-def clean_environment(cfg):
+def clean_environment(cfg, args):
     """Delete pkg files and other unnecessary files from base environment.
     """
     env_directory = get_base_env_directory(cfg)
@@ -260,7 +260,7 @@ def clean_environment(cfg):
     env = copy.deepcopy(os.environ)
     if "PYTHONPATH" in env:
         del env["PYTHONPATH"]
-    if cfg.get("dryrun"):
+    if args.dryrun:
         print(f"dryrun: {' '.join(cmd)}")
     else:
         proc = subprocess.Popen(cmd, shell=False, env=env)
@@ -280,14 +280,14 @@ def get_squashfs_num_threads():
     return n_cores
 
 
-def compress_environment(cfg, read_only_flags=True):
+def compress_environment(cfg, args, read_only_flags=True):
     """Create squashfs image from base environment.
     """
     env_directory = get_base_env_directory(cfg)
     # explicitly set read-only flags before compressing
     if read_only_flags:
         cmd = f"chmod -R a-w {env_directory}".split()
-        if cfg.get("dryrun"):
+        if args.dryrun:
             print(f"dryrun: {' '.join(cmd)}")
         else:
             proc = subprocess.Popen(cmd, shell=False)
@@ -297,7 +297,7 @@ def compress_environment(cfg, read_only_flags=True):
     squashfs_image = get_image_filename(cfg)
     num_threads = get_squashfs_num_threads()
     cmd = f"mksquashfs {env_directory}/ {squashfs_image} -noappend -processors {num_threads}".split()
-    if cfg.get("dryrun"):
+    if args.dryrun:
         print(f"dryrun: {' '.join(cmd)}")
     else:
         proc = subprocess.Popen(cmd, shell=False)
@@ -306,7 +306,7 @@ def compress_environment(cfg, read_only_flags=True):
     # restore permissions, allowing to delete the staging directory later
     if read_only_flags:
         cmd = f"chmod -R u+w {env_directory}".split()
-        if cfg.get("dryrun"):
+        if args.dryrun:
             print(f"dryrun: {' '.join(cmd)}")
         else:
             proc = subprocess.Popen(cmd, shell=False)
@@ -399,8 +399,6 @@ def build(args):
     """Create conda environment and create compressed squashfs image from it.
     """
     cfg = get_cfg()
-    cfg["quiet"] = args.quiet
-    cfg["dryrun"] = args.dryrun
     squashfs_image = get_image_filename(cfg)
     env_directory = get_base_env_directory(cfg)
     if os.path.isfile(squashfs_image):
@@ -414,28 +412,30 @@ def build(args):
         try:
             if not args.quiet:
                 print(termcol.BOLD+"Starting Condainer build process ..."+termcol.ENDC)
+                print("By continuing you accept the BSD-3-Clause license of the Miniforge installer,")
+                print("see https://github.com/conda-forge/miniforge for details.")
             if not args.dryrun:
                 os.makedirs(env_directory, exist_ok=True, mode=0o700)
             if (1 in steps) and (not cfg.get('non_conda_application')):
                 if not args.quiet:
                     print(termcol.BOLD+termcol.CYAN+"1) Creating \"base\" environment ..."+termcol.ENDC)
-                create_base_environment(cfg)
+                create_base_environment(cfg, args)
             if (2 in steps) and (not cfg.get('non_conda_application')):
                 if not args.quiet:
                     print(termcol.BOLD+termcol.CYAN+f"2) Creating \"condainer\" environment from {cfg['environment_yml']} ..."+termcol.ENDC)
-                create_condainer_environment(cfg)
+                create_condainer_environment(cfg, args)
             if (3 in steps) and (not cfg.get('non_conda_application')):
                 if not args.quiet:
                     print(termcol.BOLD+termcol.CYAN+f"3) Adding packages from {cfg['requirements_txt']} via pip ..."+termcol.ENDC)
-                pip_condainer_environment(cfg)
+                pip_condainer_environment(cfg, args)
             if (4 in steps) and (not cfg.get('non_conda_application')):
                 if not args.quiet:
                     print(termcol.BOLD+termcol.CYAN+"4) Cleaning environments from unnecessary files ..."+termcol.ENDC)
-                clean_environment(cfg)
+                clean_environment(cfg, args)
             if 5 in steps:
                 if not args.quiet:
                     print(termcol.BOLD+termcol.CYAN+"5) Compressing installation directory into SquashFS image ..."+termcol.ENDC)
-                compress_environment(cfg)
+                compress_environment(cfg, args)
             if (6 in steps) and (not cfg.get('non_conda_application')):
                 if not args.quiet:
                     print(termcol.BOLD+termcol.CYAN+"6) Creating activate and deactivate scripts ..."+termcol.ENDC)
@@ -465,7 +465,7 @@ def mount(args):
     if cfg.get('multiuser_mountpoint'):
         assert(cfg.get('non_conda_application') == True)
     if is_mounted(cfg):
-        if (not args.quiet) and ():
+        if not args.quiet:
             print("hint: condainer already mounted")
     else:
         env_directory = get_base_env_directory(cfg)
@@ -542,7 +542,7 @@ def prereq(args):
 
 
 def status(args):
-    """Print status of the present Condainer.
+    """Print status of the present Condainer project directory.
     """
     cfg = get_cfg()
     print(termcol.BOLD+"Condainer status"+termcol.ENDC)
