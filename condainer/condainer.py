@@ -7,6 +7,7 @@ Entry point functions, and factorized building blocks implementing all functiona
 import os
 import sys
 import copy
+import math
 import yaml
 import uuid
 import fcntl
@@ -268,16 +269,40 @@ def clean_environment(cfg, args):
         assert(proc.returncode == 0)
 
 
+def get_user_slice_cpu_equivalents():
+    """Get the user slice cpu limit in CPU equivalents:
+    * in case a user slice CPU limit exists, it is returned as a float > 0.0
+    * in case no user slice and/or no such limit exist, -1.0 (<0) is returned
+    """
+    uid = os.getuid()
+    quota_sys = f"/sys/fs/cgroup/cpu,cpuacct/user.slice/user-{uid}.slice/cpu.cfs_quota_us"
+    period_sys = f"/sys/fs/cgroup/cpu,cpuacct/user.slice/user-{uid}.slice/cpu.cfs_period_us"
+    try:
+        with open(quota_sys) as fp:
+            quota = float(fp.readline().rstrip('\n'))
+    except:
+        quota = -1.0
+    try:
+        with open(period_sys) as fp:
+            period = float(fp.readline().rstrip('\n'))
+    except:
+        period = 1.0
+    cpu_eqvs = quota/period
+    return cpu_eqvs
+
+
 def get_squashfs_num_threads():
     """Determine and return the number of threads to be used for `mksquashfs`
     """
-    # on large shared login nodes, we need to limit the number of threads, 16 seems reasonable as of now
-    n_threads_limit = 16
+    # on large shared login nodes, we need to limit the number of threads
+    n_threads_limit = 8
     # get the number of vcores that is actually available to the process
-    n_cores = len(os.sched_getaffinity(0))
-    if n_cores > n_threads_limit:
-        n_cores = n_threads_limit
-    return n_cores
+    n_cpus = get_user_slice_cpu_equivalents()
+    if n_cpus < 0:
+        n_threads = n_threads_limit
+    else:
+        n_threads = math.ceil(n_cpus)
+    return n_threads
 
 
 def compress_environment(cfg, args, read_only_flags=True):

@@ -3,7 +3,7 @@
 Single location for the version information.
 """
 
-ver = (0, 1, 11)
+ver = (0, 1, 12)
 
 def get_version_string():
     """Return the full version number."""
