@@ -201,6 +201,7 @@ def create_base_environment(cfg, args):
         proc.communicate()
         assert(proc.returncode == 0)
         condarc = {}
+        condarc["channels"] = ["conda-forge", "nodefaults",]
         condarc["envs_dirs"] = [os.path.join(env_directory, 'envs'),]
         condarc_yml = os.path.join(env_directory, '.condarc')
         with open(condarc_yml, 'w') as fp:
